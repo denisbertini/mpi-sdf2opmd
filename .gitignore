@@ -1,0 +1,15 @@
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+Makefile
+*.root
+*.sdf
+*.pcm
+*.pdf
+*.svg
+*.so
+*.d
+*.a
+*~
