@@ -1,5 +1,4 @@
 
-
 #include <chrono>
 #include <iostream>
 #include <random>
@@ -17,13 +16,13 @@
 
 #include <openPMD/openPMD.hpp>
 using namespace openPMD;
-
+using namespace std;
 
 extern "C" {
   struct part{ int l_px, l_py, l_pz; double* px, *py, *pz;};    
   void read_particle(const char* cstring, int clen,
 		     const char* spec,    int len_sp,
-		     part* arrays);
+		     part* arrays, long* npart, long* npart_proc, long* start);
   void init_read();
 }
 
@@ -42,9 +41,9 @@ std::vector<std::string> split(const char *str, char c = ':')
 }
 
 void sdf_io(int argc, char *argv[]) {
-    
-  int rank, mpi_size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  
+  int mpi_rank, mpi_size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
   
   std::string sdf_file;
@@ -54,127 +53,122 @@ void sdf_io(int argc, char *argv[]) {
   optparse.add_options()(
 			 "f,sdf_file", "sdf file to process",
                          cxxopts::value<std::string>(sdf_file))
-			 ("s,species_name", "species_name",
-			  cxxopts::value<std::string>(species_name));
-
+                         ("s,species_name", "species_name",
+                          cxxopts::value<std::string>(species_name));
+  
   auto opts = optparse.parse(argc, argv);
-  if (rank == 0 ){
+  if (mpi_rank == 0 ){
     std::cout << "sdf2opmd_2d: file to process: " << sdf_file.c_str() << std::endl;
     std::cout << "sdf2opmd_2d: species name list: " << species_name.c_str() << std::endl;
   }
-
+  
   // Get every species  
   std::vector<std::string> species_list = split(species_name.c_str());
-
+  
   // Create the TTree
   std::string hdf_file=sdf_file.substr(0,sdf_file.find_last_of('.'));
-  //root_file += "_r"+std::to_string(rank);
   hdf_file +=".h5";
-
-  std::cout << " Creating Series with HDF output file: " << hdf_file << std::endl;
   
-  // open file for writing
- 
-  Series series = Series(
-  			 hdf_file.c_str(), Access::CREATE, MPI_COMM_WORLD);
-
-  std::cout << "Series  created with HDF output file: " << hdf_file << std::endl;
- 
-  // Initialise ONCE the setup for MPI-I/O
+  // intialize Epoch read process 
   init_read();
-
+  
+  // Creating series
+  Series series= Series(hdf_file.c_str(), Access::CREATE, MPI_COMM_WORLD);
+  series.setAuthor("d.bertini@gsi.de");
+  
+  if (0 == mpi_rank)
+    std::cout << " Creating Series with HDF output file: " << hdf_file << std::endl;
+ 
   // Loop for all species and fetch data in parallel
   for (size_t i=0; i < species_list.size(); i++) {
     std::string spec = species_list[i];
+    if ( 0 == mpi_rank )
     std::cout<< " fetching data for  species: " << spec << std::endl; 
 
-    // Particle Kinematics
-    double px[species_list.size()];
-    double py[species_list.size()];
-    double pz[species_list.size()];
-    
     part arrays;
+    long e_npart{0}, e_npart_proc{0}, e_start{0};
     read_particle(sdf_file.c_str(), strlen(sdf_file.c_str()),
                   spec.c_str(),     strlen(spec.c_str()),  
-		  &arrays);    
+		  &arrays, &e_npart, &e_npart_proc, &e_start);    
     
-    //std::cout << "species: " << spec << " size: " << arrays.l_px << std::endl;
-    
-    for (int k=0; k<arrays.l_px; k++){
-      if ( ( (k%10000) == 0 ) && (rank == 0) )
-	std::cout << "rank: " << rank <<  " k: " << k << " px: " << arrays.px[k]
-		  << " py: " << arrays.py[k] << " pz: " << arrays.pz[k] << std::endl; 
-      px[i] = arrays.px[k];
-      py[i] = arrays.py[k];
-      pz[i] = arrays.pz[k];      
+    if (0 == mpi_rank ) {
+      // std::cout << "species: " << spec << " size: " << arrays.l_px << std::endl;
+      //std::cout << "npart: " << e_npart << " npart_proc: " << e_npart_proc << " arrays_l: " << arrays.l_px
+      //		<<   " start: " << e_start << std::endl;
+      
+      /*
+      for (int k=0; k<arrays.l_px; k++){
+	if ( ( (k%10000) == 0 ) && (mpi_rank == 0) )
+	  std::cout << "rank: " << mpi_rank <<  " k: " << k << " px: " << arrays.px[k]
+		    << " py: " << arrays.py[k] << " pz: " << arrays.pz[k] << std::endl; 
+      }
+      */
     }
-
-    /*
     
-    // Now copy back to vector ? do i need that?
-    std::vector<double> v_px(px, px + species_list.size());
-    std::vector<double> v_py(py, py + species_list.size());
-    std::vector<double> v_pz(pz, pz + species_list.size());
+    // Controlling Extension    
+    assert( arrays.l_px == e_npart_proc );
+    assert( arrays.l_py == e_npart_proc );
+    assert( arrays.l_pz == e_npart_proc );
 
-    ParticleSpecies part = series.iterations[0].particles[spec.c_str()];
+    // Create Particle species
+    ParticleSpecies e = series.iterations[1].particles[spec.c_str()];
+    
+    // Create Dataset
+    Datatype datatype = determineDatatype<double>();
+    Extent global_extent = {static_cast<long unsigned int>(e_npart)};
+    Dataset dataset = Dataset(datatype, global_extent);
+    
+    if (0 == mpi_rank)
+      cout << "Prepared a Dataset of size " << dataset.extent[0] 
+	   << " and Datatype " << dataset.dtype
+	   << '\n';    
+    
+    Offset chunk_offset = {static_cast<long unsigned int>(e_start-1)};
+    Extent chunk_extent = {static_cast<long unsigned int>(e_npart_proc)};
 
-    Datatype dtype = determineDatatype(shareRaw(v_px));
-    Extent size = {mpi_size * v_px.size()};
-    auto dataset = Dataset(dtype, size, "{ \"resizable\": false }");
+    
+    e["momentum"]["x"].resetDataset(dataset);
+    e["momentum"]["x"].storeChunk(shareRaw(arrays.px), chunk_offset, chunk_extent);
 
-    RecordComponent rc_x = part["momentum"]["x"];
-    RecordComponent rc_y = part["momentum"]["y"];
-    RecordComponent rc_z = part["momentum"]["z"];
- 
-    rc_x.resetDataset(dataset);
-    rc_y.resetDataset(dataset);
-    rc_z.resetDataset(dataset);    
+    e["momentum"]["y"].resetDataset(dataset);
+    e["momentum"]["y"].storeChunk(shareRaw(arrays.py), chunk_offset, chunk_extent);
+    
+    e["momentum"]["z"].resetDataset(dataset);
+    e["momentum"]["z"].storeChunk(shareRaw(arrays.pz), chunk_offset, chunk_extent);
+    
 
-    Offset offset = {0};
-    rc_x.storeChunk(v_px, offset, {v_px.size()});
-    rc_y.storeChunk(v_py, offset, {v_py.size()});
-    rc_x.storeChunk(v_pz, offset, {v_pz.size()});
+    if (0 == mpi_rank)
+      cout << "Registered a single chunk per MPI rank containing its "
+	"contribution, "
+	"ready to write content to disk\n";
 
-    // do I/O
     series.flush();
-    if ( rank == 0 )
-    std::cout << "Dataset written to output HDF file: "<< hdf_file << std::endl;
-    
-    */
-  }//!species
 
- std::cout << "exiting sdfio(): "  << std::endl;
+  } // species++
 
 }
 
-
-#ifndef __CINT__
-int main(int argc, char *argv[]) {
-
-  auto start = std::chrono::high_resolution_clock::now();
-
-  int mpi_rank, size;
+int main(int argc, char *argv[])
+{
+  int mpi_s{-1};
+  int mpi_r{-1};
+  
   MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_s);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_r);
+  
+  auto mpi_size = static_cast<uint64_t>(mpi_s);
+  auto mpi_rank = static_cast<uint64_t>(mpi_r);
   
   sdf_io(argc, argv);
   
-  auto end = std::chrono::high_resolution_clock::now();
-  double time =
-      std::chrono::duration_cast<std::chrono::duration<double>>(end - start)
-          .count();
-  std::string msg = "Total elapsed time: ";
-  msg += std::to_string(time);
-  msg += "\tTotal rank: ";
-  msg += std::to_string(size);
-  if (mpi_rank == 0)
-    std::cout << "SDFOPMD_2D: test" <<  msg.c_str() << std::endl;
-
-  //MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 
   return 0;
 }
-#endif
 
+
+
+
+    

@@ -109,20 +109,13 @@ void sdf_io(int argc, char *argv[]) {
     assert( arrays.l_px == e_npart_proc );
     assert( arrays.l_py == e_npart_proc );
     assert( arrays.l_pz == e_npart_proc );
-
-    // copy back to vector
-    std::vector<double> v_px, v_py, v_pz;
-    for (int k=0; k<e_npart_proc; k++) {
-      v_px.push_back(arrays.px[k]);
-      v_py.push_back(arrays.py[k]);
-      v_pz.push_back(arrays.pz[k]);    
-    }
     
     // Create Particle species
     ParticleSpecies e = series.iterations[1].particles[spec.c_str()];
     
     // Create Dataset
     Datatype datatype = determineDatatype<double>();
+    //Extent global_extent = {static_cast<unsigned long>(e_npart)};
     Extent global_extent = {e_npart};
     Dataset dataset = Dataset(datatype, global_extent);
     
@@ -133,15 +126,6 @@ void sdf_io(int argc, char *argv[]) {
     
     Offset chunk_offset = {e_start-1};
     Extent chunk_extent = {e_npart_proc};
-
-    //std::cout << "rank: "  << mpi_rank << " npart: " << e_npart << " npart_proc: " << e_npart_proc << " arrays_l: " << arrays.l_px
-    //		<<   " start: " << e_start << std::endl;
-    //std::cout << "rank : " << mpi_rank << " e_npart: " << e_npart << " calculated: " << mpi_size * e_npart_proc << std::endl;    
-    //std::cout << "rank : " << mpi_rank << " e_start-1: " << e_start-1 << " calculated: " << mpi_rank * e_npart_proc << std::endl;    
-
-    //assert (e_npart == (mpi_size * e_npart_proc));
-    //assert ((e_start-1) == (mpi_rank * e_npart_proc));
-
     
     e["momentum"]["x"].resetDataset(dataset);
     e["momentum"]["x"].storeChunk(shareRaw(arrays.px), chunk_offset, chunk_extent);
