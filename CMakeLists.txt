@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
-project(SDFROOT C CXX Fortran)
+project(SDF2OPMD C CXX Fortran)
 
 ##### PATH OF CMAKE PACKAGES
 #list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -15,7 +15,6 @@ add_definitions(-DOMPI_SKIP_MPICXX -fpermissive)
 
 # OpenMP
 find_package(OpenMP REQUIRED)
-
 
 # EPOCH
 set(EPOCH_PATH $ENV{EPOCH_ROOT})

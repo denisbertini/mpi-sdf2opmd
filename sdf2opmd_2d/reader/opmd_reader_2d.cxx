@@ -121,6 +121,7 @@ int main(int argc, char *argv[])
          << series.openPMD() << '\n';
     cout << "The Series contains " << series.iterations.size() << " iterations:";
 
+
     // Loop over all iterations in the file
     int iter=0;
     for( auto const& i : series.iterations ){
@@ -131,78 +132,39 @@ int main(int argc, char *argv[])
             
       cout << '\n';
       cout << "Iteration: "  <<  iter << "contains " << i.second.particles.size() << " particle species:";
+
       // Loop over species
       for( auto const& ps : i.second.particles ) {
         cout << "\n\t" << ps.first;
-	// for( auto const& r : ps.second ) {
-	//  cout << "\n\t" << r.first;
-	//  for( auto const& l : r.second ) {
-	//   cout << "\n\t" << l.first;
-	// }	
-	// }
       }
       cout << '\n';	
       
       iter++;
       Iteration j = i.second;
-
-      // Fields
-      MeshRecordComponent E_x = j.meshes["E"]["x"];
-      Extent extent = E_x.getExtent();
-      cout << "Field E/x has shape (";
-      for( auto const& dim : extent )
-        cout << dim << ',';
-      cout << ") and has datatype " << E_x.getDatatype() << '\n';
-      Offset chunk_offset = {1, 1};
-      Extent chunk_extent = {2, 2};
-      
-      auto chunk_data = E_x.loadChunk<double>(chunk_offset, chunk_extent);
-      cout << "Queued the loading of a single chunk from disk, "
-	"ready to execute\n";
-      series.flush();
-      cout << "Chunk has been read from disk\n"
-	   << "Read chunk contains:\n";
-      for( size_t row = 0; row < chunk_extent[0]; ++row )
-	{
-	  for( size_t col = 0; col < chunk_extent[1]; ++col )
-	    cout << "\t"
-		 << '(' << row + chunk_offset[0] << '|' << col + chunk_offset[1] << '|' << 1 << ")\t"
-		 << chunk_data.get()[row*chunk_extent[1]+col];
-	  cout << '\n';
-	}
-      
-      auto all_data = E_x.loadChunk<double>();
-      series.flush();
-      cout << "Full E/x starts with:\n\t{";
-      for( size_t col = 0; col < extent[1] && col < 5; ++col )
-	cout << all_data.get()[col] << ", ";
-      cout << "...}\n";	 
-      
-      
+    
       // Particles Species      
-      openPMD::ParticleSpecies electrons = j.particles["electron"];
+      openPMD::ParticleSpecies deuterons = j.particles["deuteron"];
       //std::shared_ptr<double> charge = electrons["charge"][openPMD::RecordComponent::SCALAR].loadChunk<double>();
       series.flush();
-      // cout << "And the first electron particle has a charge = " << charge.get()[0];
-      //cout << '\n';
       
       // Access attribute within sub-group electron_gridx
-      for( auto const& a : electrons["gridx"].attributes() ){
-	std::cout << '\t' << a << '\n';
-	
+      for( auto const& a : deuterons["momentum"].attributes() ){
+	std::cout << '\t' << a << '\n';	
       }
       std::cout << '\n';
       
-      auto grid_x = electrons["gridx"]["gridx"];
-      Extent g_extent = grid_x.getExtent();
-      auto all_x  = grid_x.loadChunk<double>();
+      auto p_x = deuterons["momentum"]["x"];
+      Extent g_extent = p_x.getExtent();
+      auto all_x  = p_x.loadChunk<double>();
       series.flush();
+
       cout << "Full Electron gridx starts with:\n\t{";
       for( size_t col = 0;  col < 5; ++col )
 	cout << all_x.get()[col] << ", ";
-      cout << "...}\n";	 
-            
-    }//!iteration 
+
+      cout << "...}\n";
+           
+    }//!iteration++ 
     
     return 0;
 }

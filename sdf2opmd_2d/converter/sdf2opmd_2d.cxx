@@ -19,10 +19,25 @@ using namespace openPMD;
 using namespace std;
 
 extern "C" {
-  struct part{ int l_px, l_py, l_pz; double* px, *py, *pz;};    
+  struct part{
+               int   l_px, l_py, l_pz;
+               double* px,  *py, *pz;
+             };
+
+  
   void read_particle(const char* cstring, int clen,
 		     const char* spec,    int len_sp,
 		     part* arrays, long* npart, long* npart_proc, long* start);
+
+  struct field{
+    int   global_sx, global_sy, l_sx, l_sy, l_dx, l_dy, l_gridx, l_gridy, l_data_size;
+    double stagger;
+    double* gridx,  *gridy, *l_field_data;
+  };
+
+  
+  void read_fields( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);
+  
   void init_read();
 }
 
@@ -40,6 +55,7 @@ std::vector<std::string> split(const char *str, char c = ':')
     return result;
 }
 
+
 void sdf_io(int argc, char *argv[]) {
   
   int mpi_rank, mpi_size;
@@ -48,24 +64,31 @@ void sdf_io(int argc, char *argv[]) {
   
   std::string sdf_file;
   std::string species_name;
+  std::string field_name;
   
   cxxopts::Options optparse("sdf_io", "runs tests on sdf_io interface");
   optparse.add_options()(
 			 "f,sdf_file", "sdf file to process",
                          cxxopts::value<std::string>(sdf_file))
+                         ("m,field_name", "field_name",
+                         cxxopts::value<std::string>(field_name))   
                          ("s,species_name", "species_name",
                           cxxopts::value<std::string>(species_name));
   
   auto opts = optparse.parse(argc, argv);
   if (mpi_rank == 0 ){
     std::cout << "sdf2opmd_2d: file to process: " << sdf_file.c_str() << std::endl;
+    std::cout << "sdf2opmd_2d: field name list: " << field_name.c_str() << std::endl;
     std::cout << "sdf2opmd_2d: species name list: " << species_name.c_str() << std::endl;
   }
+  
+  // Get every field  
+  std::vector<std::string> field_list = split(field_name.c_str());
   
   // Get every species  
   std::vector<std::string> species_list = split(species_name.c_str());
   
-  // Create the TTree
+  // Output filename
   std::string hdf_file=sdf_file.substr(0,sdf_file.find_last_of('.'));
   hdf_file +=".h5";
   
@@ -78,7 +101,113 @@ void sdf_io(int argc, char *argv[]) {
   
   if (0 == mpi_rank)
     std::cout << " Creating Series with HDF output file: " << hdf_file << std::endl;
- 
+
+  // Read field data
+  if (0 == mpi_rank)
+    std::cout << " Reading field data : " << hdf_file << std::endl;
+
+
+  //
+  // Fields
+  //
+
+  bool load_grids = false;
+  
+  for (size_t i=0; i < field_list.size(); i++) {
+    std::string blockid = field_list[i];
+    if ( 0 == mpi_rank )
+      std::cout<< " fetching data for field: " << blockid << std::endl; 
+    
+    field field_x;
+    read_fields(sdf_file.c_str(), strlen(sdf_file.c_str()), blockid.c_str(), strlen(blockid.c_str()), &field_x);
+    
+    if (0 == mpi_rank){
+      std::cout << " C side: read_field: " << blockid.c_str() << std::endl;
+      std::cout << " global sizes sx: " << field_x.global_sx << "  sy: " << field_x.global_sy << std::endl;
+      std::cout << " local sizes l_sx: " << field_x.l_sx << " l_sy: " << field_x.l_sy << std::endl;
+      std::cout << " start sizes    st_x: " << field_x.l_dx << " st_y: " << field_x.l_dy << std::endl;
+      std::cout << " grid  size  x: " << field_x.l_gridx << " y: " << field_x.l_gridy << std::endl; 
+
+    }
+
+    // Loads the Grids  
+    // Create a mesh for grids
+    MeshRecordComponent gx_mesh =
+      series.iterations[1].meshes["grid_x"][MeshRecordComponent::SCALAR];
+    MeshRecordComponent gy_mesh =
+      series.iterations[1].meshes["grid_y"][MeshRecordComponent::SCALAR];
+        
+    Datatype dtype = determineDatatype<double>();;
+    Extent extent_x = {field_x.l_gridx};
+    Dataset dataset_x = Dataset(dtype, extent_x);
+    Extent extent_y = {field_x.l_gridy};
+    Dataset dataset_y = Dataset(dtype, extent_y);
+    
+    gx_mesh.resetDataset(dataset_x);
+    gy_mesh.resetDataset(dataset_y);
+    
+    Offset offset_x = {0};
+    Offset offset_y = {0};      
+    gx_mesh.storeChunk(shareRaw(field_x.gridx), offset_x, extent_x);
+    gy_mesh.storeChunk(shareRaw(field_x.gridy), offset_y, extent_y);      
+    
+    // Load fields values 
+    // Remap in 2D using vector
+    const int nx = field_x.l_sx;
+    const int ny = field_x.l_sy;
+    std::vector<double> v_map;
+    
+    // Fill the 2D vector map
+    for (int i=0;i<nx; i++){
+      for (int j=0;j<ny; j++){
+	int l_index = ((j) * nx) + (i);
+	v_map.push_back(field_x.l_field_data[l_index]);
+      }
+    }
+    
+    // print the 2D map
+    //for(int i = 0; i < nx*ny; i++) std::cout << " i: " << i << " val: " <<  v_map[i] << std::endl; 
+    
+    // Create a 2D mesh for E_x
+    MeshRecordComponent ex_mesh =
+      series.iterations[1].meshes[blockid.c_str()][MeshRecordComponent::SCALAR];
+    
+    // Only 1D domain decomposition in first index
+    Datatype datatype = determineDatatype<double>();
+    Extent global_extent = {field_x.global_sx, field_x.global_sy};
+    Dataset dataset = Dataset(datatype, global_extent);
+    
+    
+    if (0 == mpi_rank)
+      cout << "Prepared a Field Dataset of size " << dataset.extent[0] << "x"
+	   << dataset.extent[1] << " and Datatype " << dataset.dtype
+	   << '\n';
+    
+    ex_mesh.resetDataset(dataset);
+    
+    // example shows a 1D domain decomposition in first index
+    Offset chunk_offset = {field_x.l_dx, field_x.l_dy};
+    Extent chunk_extent = {field_x.l_sx, field_x.l_sy};
+    
+    // Store the 2D map
+    ex_mesh.storeChunk(v_map, chunk_offset, chunk_extent);
+    
+    if (0 == mpi_rank)
+      cout << "Registered a single chunk per MPI rank containing its "
+	"contribution, "
+	"ready to write content to disk\n";
+    
+    series.flush();
+    
+    if (0 == mpi_rank)
+      cout << "Fields Datasets content has been fully written to disk\n";
+  } // fields++
+
+
+  // 
+  // Particles
+  //
+  
   // Loop for all species and fetch data in parallel
   for (size_t i=0; i < species_list.size(); i++) {
     std::string spec = species_list[i];
@@ -90,21 +219,21 @@ void sdf_io(int argc, char *argv[]) {
     read_particle(sdf_file.c_str(), strlen(sdf_file.c_str()),
                   spec.c_str(),     strlen(spec.c_str()),  
 		  &arrays, &e_npart, &e_npart_proc, &e_start);    
-    
+
+    /*
     if (0 == mpi_rank ) {
-      // std::cout << "species: " << spec << " size: " << arrays.l_px << std::endl;
-      //std::cout << "npart: " << e_npart << " npart_proc: " << e_npart_proc << " arrays_l: " << arrays.l_px
-      //		<<   " start: " << e_start << std::endl;
+      std::cout << "species: " << spec << " size: " << arrays.l_px << std::endl;
+      std::cout << "npart: " << e_npart << " npart_proc: " << e_npart_proc << " arrays_l: " << arrays.l_px
+      		<<   " start: " << e_start << std::endl;
       
-      /*
       for (int k=0; k<arrays.l_px; k++){
 	if ( ( (k%10000) == 0 ) && (mpi_rank == 0) )
 	  std::cout << "rank: " << mpi_rank <<  " k: " << k << " px: " << arrays.px[k]
 		    << " py: " << arrays.py[k] << " pz: " << arrays.pz[k] << std::endl; 
-      }
-      */
+      }    
     }
-    
+    */    
+
     // Controlling Extension    
     assert( arrays.l_px == e_npart_proc );
     assert( arrays.l_py == e_npart_proc );

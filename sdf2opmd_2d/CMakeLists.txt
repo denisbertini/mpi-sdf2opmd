@@ -42,9 +42,9 @@ target_link_libraries(SDFOPMD2D
 
 set_target_properties(SDFOPMD2D PROPERTIES LINKER_LANGUAGE CXX)
 
-# Add iotests 
+# Add executables
 add_subdirectory(converter)
-
+add_subdirectory(reader)
 
 install(
         TARGETS SDFOPMD2D
