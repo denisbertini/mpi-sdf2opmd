@@ -5,7 +5,7 @@ SDF to openPMD compliant format via openpmd-api interface.
 `mpi-sdf2opmd` converts [Epoch](https://github.com/Warwick-Plasma/epoch)  `SDF` data format to
 [openPMD standard schema](https://github.com/openPMD/openPMD-standard).
 It  uses internally the functionality of the [openPMD-api](https://openpmd-api.readthedocs.io/en/0.14.5/) library which provides
-a reference API for the [openPMD schema]((https://github.com/openPMD/openPMD-standard). 
+a reference API for the [openPMD schema](https://github.com/openPMD/openPMD-standard). 
 Furthermore the  openPMD-api library implementing  
 various I/O backends i.e
 
