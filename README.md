@@ -11,7 +11,7 @@ It  uses internally the functionality of the [openPMD-api](https://openpmd-api.r
 a reference API for the [openPMD schema](https://github.com/openPMD/openPMD-standard). 
 Furthermore the  openPMD-api library implementing  various I/O backends i.e
 
-- [JSON](https://de.wikipedia.org/wiki/JavaScript_Object_Notation) (
+- [JSON](https://de.wikipedia.org/wiki/JavaScript_Object_Notation) (only for serial workflow)
 - [HDF5](https://www.hdfgroup.org/solutions/hdf5/)
 - [ADIOS1](https://github.com/ornladios/ADIOS)
 - [ADIOS2](https://adios2.readthedocs.io/en/latest/)
