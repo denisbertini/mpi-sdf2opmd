@@ -20,9 +20,9 @@ using namespace std;
 
 extern "C" {
   struct part{
-               int   l_px, l_py, l_pz;
-               double* px,  *py, *pz;
-             };
+    int   l_x, l_y, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm;
+    double *x, *y, *w,  *px, *py, *pz, *vx, *vy, *vz, *ek, *rm, *gm;
+  };
 
   
   void read_particle(const char* cstring, int clen,
@@ -65,6 +65,7 @@ void sdf_io(int argc, char *argv[]) {
   std::string sdf_file;
   std::string species_name;
   std::string field_name;
+  std::string output_format;
   
   cxxopts::Options optparse("sdf_io", "runs tests on sdf_io interface");
   optparse.add_options()(
@@ -73,13 +74,16 @@ void sdf_io(int argc, char *argv[]) {
                          ("m,field_name", "field_name",
                          cxxopts::value<std::string>(field_name))   
                          ("s,species_name", "species_name",
-                          cxxopts::value<std::string>(species_name));
+                         cxxopts::value<std::string>(species_name))
+                         ("o,output_format", "output_format",
+                         cxxopts::value<std::string>(output_format));
   
   auto opts = optparse.parse(argc, argv);
   if (mpi_rank == 0 ){
     std::cout << "sdf2opmd_2d: file to process: " << sdf_file.c_str() << std::endl;
     std::cout << "sdf2opmd_2d: field name list: " << field_name.c_str() << std::endl;
     std::cout << "sdf2opmd_2d: species name list: " << species_name.c_str() << std::endl;
+    std::cout << "sdf2opmd_2d: output format: " << output_format.c_str() << std::endl;    
   }
   
   // Get every field  
@@ -90,7 +94,20 @@ void sdf_io(int argc, char *argv[]) {
   
   // Output filename
   std::string hdf_file=sdf_file.substr(0,sdf_file.find_last_of('.'));
-  hdf_file +=".h5";
+
+  if ( output_format == "hdf5" ){
+    hdf_file +=".h5";
+  }else if ( output_format == "adios"){
+    hdf_file +=".bp";
+    // JSON not supported with MPI 
+    //}else if ( output_format == "json"){
+    // hdf_file +=".json";    
+  } else {
+    // default to hdf5
+    hdf_file +=".h5";
+  }
+
+  std::cout << " Creating Series with output file: " << hdf_file << std::endl;
   
   // intialize Epoch read process 
   init_read();
@@ -100,21 +117,20 @@ void sdf_io(int argc, char *argv[]) {
   series.setAuthor("d.bertini@gsi.de");
   
   if (0 == mpi_rank)
-    std::cout << " Creating Series with HDF output file: " << hdf_file << std::endl;
+    std::cout << " Creating Series with output file: " << hdf_file << std::endl;
 
   // Read field data
   if (0 == mpi_rank)
-    std::cout << " Reading field data : " << hdf_file << std::endl;
+    std::cout << " Reading field data from : " << hdf_file << std::endl;
 
 
   //
   // Fields
   //
 
-  bool load_grids = false;
   
-  for (size_t i=0; i < field_list.size(); i++) {
-    std::string blockid = field_list[i];
+  for (size_t k=0; k < field_list.size(); k++) {
+    std::string blockid = field_list[k];
     if ( 0 == mpi_rank )
       std::cout<< " fetching data for field: " << blockid << std::endl; 
     
@@ -234,10 +250,20 @@ void sdf_io(int argc, char *argv[]) {
     }
     */    
 
-    // Controlling Extension    
+    // Controlling Extensions
+    if (arrays.l_px>0) 
     assert( arrays.l_px == e_npart_proc );
+    if (arrays.l_py>0) 
     assert( arrays.l_py == e_npart_proc );
+    if (arrays.l_pz>0) 
     assert( arrays.l_pz == e_npart_proc );
+    if (arrays.l_x>0) 
+    assert( arrays.l_x  == e_npart_proc );
+    if (arrays.l_y>0) 
+    assert( arrays.l_y  == e_npart_proc );
+    if (arrays.l_w>0) 
+    assert( arrays.l_w  == e_npart_proc );
+    
     
     // Create Particle species
     ParticleSpecies e = series.iterations[1].particles[spec.c_str()];
@@ -255,17 +281,74 @@ void sdf_io(int argc, char *argv[]) {
     
     Offset chunk_offset = {e_start-1};
     Extent chunk_extent = {e_npart_proc};
-    
-    e["momentum"]["x"].resetDataset(dataset);
-    e["momentum"]["x"].storeChunk(shareRaw(arrays.px), chunk_offset, chunk_extent);
 
-    e["momentum"]["y"].resetDataset(dataset);
-    e["momentum"]["y"].storeChunk(shareRaw(arrays.py), chunk_offset, chunk_extent);
+    // Add particules infos accroding to input SDF
     
-    e["momentum"]["z"].resetDataset(dataset);
-    e["momentum"]["z"].storeChunk(shareRaw(arrays.pz), chunk_offset, chunk_extent);
+    // P
+    if (arrays.l_px>0){ 
+      e["momentum"]["x"].resetDataset(dataset);
+      e["momentum"]["x"].storeChunk(shareRaw(arrays.px), chunk_offset, chunk_extent);
+    }
     
-
+    if (arrays.l_py>0){ 
+      e["momentum"]["y"].resetDataset(dataset);
+      e["momentum"]["y"].storeChunk(shareRaw(arrays.py), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_pz>0){     
+      e["momentum"]["z"].resetDataset(dataset);
+      e["momentum"]["z"].storeChunk(shareRaw(arrays.pz), chunk_offset, chunk_extent);
+    }
+    
+    // V
+    if (arrays.l_vx>0){     
+      e["velocity"]["x"].resetDataset(dataset);
+      e["velocity"]["x"].storeChunk(shareRaw(arrays.vx), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_vy>0){     
+      e["velocity"]["y"].resetDataset(dataset);
+      e["velocity"]["y"].storeChunk(shareRaw(arrays.vy), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_vz>0){         
+      e["velocity"]["z"].resetDataset(dataset);
+      e["velocity"]["z"].storeChunk(shareRaw(arrays.vz), chunk_offset, chunk_extent);
+    }
+    
+    // X
+    if (arrays.l_x>0){         
+      e["position"]["x"].resetDataset(dataset);
+      e["position"]["x"].storeChunk(shareRaw(arrays.x), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_y>0){         
+      e["position"]["y"].resetDataset(dataset);
+      e["position"]["y"].storeChunk(shareRaw(arrays.y), chunk_offset, chunk_extent);
+    }
+    
+    auto const scalar = openPMD::RecordComponent::SCALAR;
+    
+    if (arrays.l_w>0){         
+      e["weighting"][scalar].resetDataset(dataset);
+      e["weighting"][scalar].storeChunk(shareRaw(arrays.w), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_ek>0){             
+      e["ek"][scalar].resetDataset(dataset);
+      e["ek"][scalar].storeChunk(shareRaw(arrays.ek), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_rm>0){             
+      e["rm"][scalar].resetDataset(dataset);
+      e["rm"][scalar].storeChunk(shareRaw(arrays.rm), chunk_offset, chunk_extent);
+    }
+    
+    if (arrays.l_gm>0){             
+      e["gm"][scalar].resetDataset(dataset);
+      e["gm"][scalar].storeChunk(shareRaw(arrays.gm), chunk_offset, chunk_extent);    
+    }  
+    
     if (0 == mpi_rank)
       cout << "Registered a single chunk per MPI rank containing its "
 	"contribution, "

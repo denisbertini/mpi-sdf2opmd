@@ -283,7 +283,7 @@ CONTAINS
 
 
 
-  SUBROUTINE read_particle_data(filename, species_name, particle_data, npart_global, npart_proc, start)
+  SUBROUTINE read_particle_data(filename, species_name, particle_data, npart_global, npart_proc, start, columns)
 
     USE sdf_job_info
     ! Read all particle data for named species into data array
@@ -297,6 +297,7 @@ CONTAINS
     INTEGER(i8)                                   , INTENT(OUT) :: npart_global, npart_proc, start
     INTEGER(i8)                                                 :: npart 
     CHARACTER(LEN=c_id_length) :: code_name, block_id, mesh_id, found_mesh_id, species_id
+    CHARACTER(LEN=c_id_length), dimension(:), allocatable, target, intent(out) :: columns
     CHARACTER(LEN=c_id_length) :: units
     CHARACTER(LEN=c_max_string_length) :: name
     REAL(num) :: time
@@ -433,6 +434,31 @@ CONTAINS
       END IF
     END DO
 
+    ! Additional particle info
+    allocate (columns(current_var));
+    columns(1) = 'gridx'
+    columns(2) = 'gridy'
+
+    CALL sdf_seek_start(sdf_handle)
+    current_var = c_ndims+1
+
+    ! Read again the data
+    DO iblock = 1, nblocks
+      CALL sdf_read_next_block_header(sdf_handle, block_id, name, blocktype, &
+          ndims, datatype)
+
+      IF (blocktype /= c_blocktype_point_variable) CYCLE
+
+      CALL sdf_read_point_variable_info(sdf_handle, npart, mesh_id, &
+          units, species_id)
+
+      IF (TRIM(species_id) == species_name) THEN
+        !IF (rank == 0) PRINT*, 'AGAIN Column ', current_var, ' is ', block_id
+        columns(current_var) = block_id
+        current_var = current_var + 1        
+      END IF
+    END DO
+    
     CALL sdf_close(sdf_handle)
 
     CALL MPI_Type_free(mpitype, ierr)
