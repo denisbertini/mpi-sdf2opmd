@@ -4,12 +4,6 @@ OPTIND=1
 
 usage() { echo "Usage: $0  [-c <string>]" 1>&2; return; }
 
-# check first if we have spack 
-if ! [ -x "$(which spack)" ]; then
-  echo 'Error: spack is not installed on this system, quiting ...' >&2
-  return
-fi
-
 
 while getopts ":v:c:" o; do
     case "${o}" in
@@ -28,6 +22,42 @@ shift $((OPTIND-1))
 
 if [ -z "${c}" ]; then
     usage
+fi
+
+# container case
+
+if [ $c == 'cont' ]
+then
+  export CONT=/lustre/rz/dbertini/containers/prod/rlx8_ompi_ucx.sif      
+  echo "Singularity container image -> $CONT"
+
+  export CC=`which gcc`
+  export CXX=`which g++`
+  export FC=`which gfortran`
+  
+  echo 'Epoch container setup ->'
+  export EPOCH_ROOT=/usr/local/epoch
+  export EPOCH_PATH=$EPOCH_ROOT
+  type epoch1d
+  type epoch2d
+  type epoch3d
+
+  # Generate static library
+  mkdir -p sdf2opmd_1d/epoch_libs/
+  mkdir -p sdf2opmd_2d/epoch_libs/
+  mkdir -p sdf2opmd_3d/epoch_libs/
+  
+  ar cr sdf2opmd_1d/epoch_libs/epoch1d_lib.a $EPOCH_PATH/epoch1d/obj/*.o 
+  ar cr sdf2opmd_2d/epoch_libs/epoch2d_lib.a $EPOCH_PATH/epoch2d/obj/*.o 
+  ar cr sdf2opmd_3d/epoch_libs/epoch3d_lib.a $EPOCH_PATH/epoch3d/obj/*.o
+  
+  return
+fi
+
+# check first if we have spack 
+if ! [ -x "$(which spack)" ]; then
+  echo 'Error: spack is not installed on this system, quiting ...' >&2
+  return
 fi
 
 echo "selected compiler = ${c}"

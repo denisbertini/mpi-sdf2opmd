@@ -13,7 +13,7 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-MODULE read_support_2d
+MODULE read_support_3d
 
   USE mpi
   USE sdf
@@ -28,7 +28,7 @@ MODULE read_support_2d
   INTEGER, PARAMETER :: num = r8
   INTEGER, PARAMETER :: mpireal = MPI_DOUBLE_PRECISION
   INTEGER, PARAMETER :: c_max_string_length = 64
-  INTEGER, PARAMETER :: c_ndims = 2
+  INTEGER, PARAMETER :: c_ndims = 3
 
   REAL(num), DIMENSION(:,:), POINTER :: current_array
   INTEGER :: current_var, rank
@@ -39,12 +39,13 @@ CONTAINS
 
     ! Do the basic MPI setup ops
     INTEGER :: ierr
-    
+
     !CALL MPI_Init(ierr)
     CALL MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
 
- 
   END SUBROUTINE mpi_setup_for_read
+
+
 
   SUBROUTINE mpi_finish
 
@@ -55,28 +56,30 @@ CONTAINS
   END SUBROUTINE mpi_finish
 
 
-  subroutine dims_for_rank(global_dims, rank, n_procs, local_sizes, &
-       local_starts)
-    
-    ! get dimensions of global array belonging to this rank
-    integer, dimension(:), intent(in) :: global_dims
-    integer, intent(in) :: rank, n_procs
-    integer, dimension(:), intent(out) :: local_sizes, local_starts
-    integer, dimension(:), allocatable :: dims
-    integer :: ierr, i, nproc, sz
-    
-    ! work out this processors piece of domain
-    allocate(dims(c_ndims))
-    
+
+  SUBROUTINE dims_for_rank(global_dims, rank, n_procs, local_sizes, &
+                           local_starts)
+
+    ! Get dimensions of global array belonging to this rank
+    INTEGER, DIMENSION(:), INTENT(IN) :: global_dims
+    INTEGER, INTENT(IN) :: rank, n_procs
+    INTEGER, DIMENSION(:), INTENT(OUT) :: local_sizes, local_starts
+    INTEGER, DIMENSION(:), ALLOCATABLE :: dims
+    INTEGER :: ierr, i, nproc, sz
+
+    ! Work out this processors piece of domain
+    ALLOCATE(dims(c_ndims))
+
     dims = 0
-    call mpi_dims_create(n_procs, c_ndims, dims, ierr)
-    
+    CALL MPI_Dims_create(n_procs, c_ndims, dims, ierr)
+
     dims(1) = n_procs
     dims(2) = 1
+    dims(3) = 1 
     
     local_sizes = 0
     local_starts = 0
-    
+
     nproc = dims (1)
     sz = global_dims(1)/nproc
     
@@ -93,51 +96,63 @@ CONTAINS
     sz = global_dims(2)/nproc
     local_sizes(2) = sz
     local_starts(2) = 0
+
+    nproc = dims (3)
+    sz = global_dims(3)/nproc
+    local_sizes(3) = sz
+    local_starts(3) = 0        
     
-    deallocate(dims)
-    
-  end subroutine dims_for_rank
-  
+    DEALLOCATE(dims)
+
+  END SUBROUTINE
+
+
 
   SUBROUTINE create_field_types(n_global, n_local, starts, mpi_basetype, &
                                 mpitype, mpi_noghost)
-    
+
     ! Create the MPI types for fields, without ghost cells
     INTEGER, DIMENSION(:), INTENT(IN) :: n_global, n_local, starts
     INTEGER, INTENT(IN) :: mpi_basetype
     INTEGER, INTENT(OUT) :: mpitype, mpi_noghost
     INTEGER, DIMENSION(:), ALLOCATABLE :: local_starts
     INTEGER :: errcode
-    
+
     ALLOCATE(local_starts(c_ndims))
-    
+
     local_starts = 0
-    
+
     ! MPI type for processors section of global array
     CALL MPI_TYPE_CREATE_SUBARRAY(c_ndims, n_global, n_local, &
-         starts, MPI_ORDER_FORTRAN, mpi_basetype, mpitype, errcode)
+        starts, MPI_ORDER_FORTRAN, mpi_basetype, mpitype, errcode)
     CALL MPI_Type_commit(mpitype, errcode)
-    
+
     ! MPI type which would be used if we had ghost cells to add/remove
     CALL MPI_TYPE_CREATE_SUBARRAY(c_ndims, n_local, n_local, &
-         local_starts, MPI_ORDER_FORTRAN, mpi_basetype, mpi_noghost, errcode)
+        local_starts, MPI_ORDER_FORTRAN, mpi_basetype, mpi_noghost, errcode)
     CALL MPI_Type_commit(mpi_noghost, errcode)
-    
+
     DEALLOCATE(local_starts)
+
+  END SUBROUTINE
+
+
+
+
+    subroutine read_field_data_r8(filename, block_id, field_data, grid_x, grid_y, grid_z,name, &
+      units, dims, stagger,  mesh_id, norm, local_sizes, local_starts)
     
-  END SUBROUTINE create_field_types
-  
-  subroutine read_field_data_r8(filename, block_id, field_data, grid_x, grid_y, name, &
-       units, dims, stagger,  mesh_id, norm, local_sizes, local_starts)
-    
-    use sdf_job_info
-    
+    USE sdf_job_info
+    ! Read field data in double precision
+    ! I check the datatype, but do nothing to convert it if wrong, instead
+    ! returning
+
     character(len=c_max_string_length), intent(in) :: filename
     character(len=c_id_length), intent(in) :: block_id
 
     ! swap these to single precision for data in single precision
-    real(num), dimension(:,:), allocatable, intent(out) :: field_data
-    real(num), dimension(:), allocatable, intent(out) :: grid_x, grid_y
+    real(num), dimension(:,:,:), allocatable, intent(out) :: field_data
+    real(num), dimension(:), allocatable, intent(out) :: grid_x, grid_y, grid_z
     real(num),intent(out)                             :: norm
     integer, dimension(4), intent(out) :: dims
     character(len=c_id_length), intent(out) :: units, mesh_id
@@ -155,104 +170,113 @@ CONTAINS
     type(sdf_file_handle) :: sdf_handle
     type(jobid_type) :: jobid
 
-    
-    call sdf_open(sdf_handle, filename, mpi_comm_world, c_sdf_read)
-    
-    call sdf_read_header(sdf_handle, step, time, code_name, code_io_version, &
-         string_len, restart_flag)
+    CALL sdf_open(sdf_handle, filename, MPI_COMM_WORLD, c_sdf_read)
 
-    
+    CALL sdf_read_header(sdf_handle, step, time, code_name, code_io_version, &
+        string_len, restart_flag)
+
     nblocks = sdf_read_nblocks(sdf_handle)
     jobid = sdf_read_jobid(sdf_handle)
-    
-    call sdf_read_blocklist(sdf_handle)
-    
+
+    IF (rank == 0) THEN
+      PRINT*, 'Loading snapshot for time', time
+      PRINT*, 'Input file contains', nblocks, 'blocks'
+    END IF
+
+    CALL sdf_read_blocklist(sdf_handle)
+
     found = sdf_find_block_by_id(sdf_handle, block_id)
 
-    if (.not. found) then
-       if (rank == 0) then
-          print*, '*** error ***'
-          print*, 'block not found: ', trim(block_id)
-       end if
-       stop
-    end if
+    IF (.NOT. found) THEN
+      IF (rank == 0) THEN
+        PRINT*, '*** ERROR ***'
+        PRINT*, 'Block not found: ', TRIM(block_id)
+      END IF
+      STOP
+    END IF
 
-    
-    call sdf_read_block_header(sdf_handle, id, name, blocktype, ndims, datatype)
-    
-    if (blocktype /= c_blocktype_plain_variable) then
-       if (rank == 0) then
-          print*, '*** error ***'
-          print*, 'wrong blocktype'
-       end if
-       stop
-    end if
-    
-    ! single precision data has datatype c_datatype_real4
-    if (datatype /= c_datatype_real8) then
-       if (rank == 0) then
-          print*, '*** error ***'
-          print*, 'wrong datatype'
-       end if
-       stop
-    end if
-    
-    ! check for the correct dimensionality
-    if (ndims /= c_ndims) then
-       if (rank == 0) then
-          print*, '*** error ***'
-          print*, 'wrong number of dimensions'
-       end if
-       stop
-    end if
-    
-    call sdf_read_plain_variable_info(sdf_handle, dims, units, mesh_id, stagger, norm)
-    
+    CALL sdf_read_block_header(sdf_handle, id, name, blocktype, ndims, datatype)
+
+    IF (blocktype /= c_blocktype_plain_variable) THEN
+      IF (rank == 0) THEN
+        PRINT*, '*** ERROR ***'
+        PRINT*, 'Wrong blocktype'
+      END IF
+      STOP
+    END IF
+
+    ! Single precision data has datatype c_datatype_real4
+    IF (datatype /= c_datatype_real8) THEN
+      IF (rank == 0) THEN
+        PRINT*, '*** ERROR ***'
+        PRINT*, 'Wrong datatype'
+      END IF
+      STOP
+    END IF
+
+    ! Check for the correct dimensionality
+    IF (ndims /= c_ndims) THEN
+      IF (rank == 0) THEN
+        PRINT*, '*** ERROR ***'
+        PRINT*, 'Wrong number of dimensions'
+      END IF
+      STOP
+    END IF
+
+
+    call sdf_read_plain_variable_info(sdf_handle, dims, units, mesh_id, stagger, norm)    
+
+
     if (rank == 0) then
        print*, ' read_field_data_r8():' 
        print*, '               type: ', datatype
        print*, '              ndims: ', ndims
        print*, '               dims: ', dims(1:ndims)
     end if
-    
-    call mpi_comm_size(mpi_comm_world, total_procs, ierr)
-    call dims_for_rank(dims, rank, total_procs, local_sizes, local_starts)
+
+    CALL MPI_Comm_size(MPI_COMM_WORLD, total_procs, ierr)
+    CALL dims_for_rank(dims, rank, total_procs, local_sizes, local_starts)
 
     print*, ' read_field_data_r8():' 
-    print*, 'rank: ', rank, ' sizes: ', local_sizes, ' starts: ', local_starts
-    
-    allocate(field_data(local_sizes(1), local_sizes(2)))
-    field_data = 0.0_num
-    
-    call create_field_types(dims, local_sizes, local_starts, mpireal, &
-         mpitype, mpi_noghost)
-    
-    call sdf_read_plain_variable(sdf_handle, field_data, mpitype, mpi_noghost)
+    print*, 'rank: ', rank, ' sizes: ', local_sizes, ' starts: ', local_starts    
 
-    allocate(grid_x(dims(1)+1))
-    allocate(grid_y(dims(2)+1))
-    
+    ALLOCATE(field_data(local_sizes(1), local_sizes(2), local_sizes(3)))
+    field_data = 0.0_num
+
+    CALL create_field_types(dims, local_sizes, local_starts, mpireal, &
+        mpitype, mpi_noghost)
+
+    CALL sdf_read_plain_variable(sdf_handle, field_data, mpitype, mpi_noghost)
+
+    IF (rank == 0) PRINT*, 'Grid name is ', mesh_id
+
+    ALLOCATE(grid_x(dims(1)+1))
+    ALLOCATE(grid_y(dims(2)+1))
+    ALLOCATE(grid_z(dims(3)+1))
+
     grid_x = 0.0_num
     grid_y = 0.0_num
-    
-    found = sdf_find_block_by_id(sdf_handle, mesh_id)
-    
-    if (.not. found) then
-       if (rank == 0) then
-          print*, '*** error ***'
-          print*, 'block not found: ', trim(mesh_id)
-       end if
-       stop
-    end if
+    grid_z = 0.0_num
 
-    call sdf_read_srl_plain_mesh(sdf_handle, grid_x, grid_y)
-    
-    call sdf_close(sdf_handle)
-    
-    call mpi_type_free(mpitype, ierr)
-    call mpi_type_free(mpi_noghost, ierr)
-    
-  end subroutine read_field_data_r8
+    found = sdf_find_block_by_id(sdf_handle, mesh_id)
+
+    IF (.NOT. found) THEN
+      IF (rank == 0) THEN
+        PRINT*, '*** ERROR ***'
+        PRINT*, 'Block not found: ', TRIM(mesh_id)
+      END IF
+      STOP
+    END IF
+
+    CALL sdf_read_srl_plain_mesh(sdf_handle, grid_x, grid_y, grid_z)
+
+    CALL sdf_close(sdf_handle)
+
+    CALL MPI_Type_free(mpitype, ierr)
+    CALL MPI_Type_free(mpi_noghost, ierr)
+
+  END SUBROUTINE read_field_data_r8
+
 
 
   SUBROUTINE particles_for_rank(npart, rank, n_procs, npart_proc, start)
@@ -286,7 +310,7 @@ CONTAINS
 
     USE sdf_job_info
     ! Read all particle data for named species into data array
-    ! First two columns will be 2-D grid data
+    ! First three columns will be 3-D grid data
     ! Next will be one per particle variable
     CHARACTER(LEN=c_max_string_length), INTENT(IN) :: filename, species_name
     ! Swap these to single precision for data in single precision
@@ -331,7 +355,6 @@ CONTAINS
 
       IF (blocktype /= c_blocktype_point_variable) CYCLE
 
-      
       CALL sdf_read_point_variable_info(sdf_handle, npart, mesh_id, &
           units, species_id)
 
@@ -339,7 +362,7 @@ CONTAINS
       IF (TRIM(species_id) == species_name) THEN
          vars_per_species = vars_per_species + 1
          found_mesh_id = mesh_id
-         npart_global = npart
+         npart_global = npart         
       END IF
     END DO
 
@@ -357,7 +380,7 @@ CONTAINS
     IF (.NOT. found) THEN
       IF (rank == 0) THEN
         PRINT*, '*** ERROR ***'
-        PRINT*, 'Block not found: ', TRIM(mesh_id)
+        PRINT*, 'Block not found: ', TRIM(found_mesh_id)
       END IF
       STOP
     END IF
@@ -370,14 +393,11 @@ CONTAINS
         PRINT*, 'No particles for species: ', TRIM(species_name)
       END IF
       STOP
-   END IF
-
-   
+    END IF
 
    IF (rank == 0) PRINT*, 'Found  species_name: ', species_name, ' npart: ', npart, &
-        ' with: ',  vars_per_species, ' particle variables'
-   
-    
+        ' with: ',  vars_per_species, ' particle variables'    
+
     CALL MPI_Comm_size(MPI_COMM_WORLD, total_procs, ierr)
     CALL particles_for_rank(npart, rank, total_procs, npart_proc, start)
 
@@ -410,7 +430,7 @@ CONTAINS
     ! Rewind and read the data
     ! This is inefficient but simplest
     CALL sdf_seek_start(sdf_handle)
-    current_var = c_ndims+1
+    current_var = c_ndims + 1
     ! Read the data
     DO iblock = 1, nblocks
       CALL sdf_read_next_block_header(sdf_handle, block_id, name, blocktype, &
@@ -423,7 +443,6 @@ CONTAINS
 
       ! To read only selected variables, select the names here.
       ! These must match line 305
-      
       IF (TRIM(species_id) == species_name) THEN
         ! Read this procs particles
         CALL sdf_read_point_variable(sdf_handle, npart_proc, mpitype, &
@@ -437,7 +456,8 @@ CONTAINS
     allocate (columns(current_var));
     columns(1) = 'gridx'
     columns(2) = 'gridy'
-
+    columns(2) = 'gridz'    
+       
     CALL sdf_seek_start(sdf_handle)
     current_var = c_ndims+1
 
@@ -579,26 +599,21 @@ CONTAINS
   END SUBROUTINE create_particle_type
 
 
-  subroutine read_derived_variables(filename, block_id, field_data, grid_x, grid_y, name, &
-       units, dims, stagger,  mesh_id, norm, local_sizes, local_starts)
+
+  subroutine read_derived_variables(filename)
     
     use sdf_job_info
     
     character(len=c_max_string_length), intent(in) :: filename
-    character(len=c_id_length), intent(inout) :: block_id
+    character(len=c_id_length) :: block_id
 
-    ! swap these to single precision for data in single precision
-    real(num), dimension(:,:), allocatable, intent(out) :: field_data
-    real(num), dimension(:), allocatable, intent(out) :: grid_x, grid_y
-    real(num),intent(out)                             :: norm
-    integer, dimension(4), intent(out) :: dims
-    character(len=c_id_length), intent(out) :: units, mesh_id
-    character(len=c_max_string_length), intent(out) :: name
-    integer, intent(out)  :: stagger
+    integer, dimension(4) :: dims
+    character(len=c_max_string_length) :: name
+    integer :: stagger
     
     character(len=c_id_length) :: code_name, id
     real(num) :: time
-    integer, dimension(4), intent(out)  :: local_sizes, local_starts
+    integer, dimension(4) :: local_sizes, local_starts
 
     integer :: blocktype, datatype, code_io_version, step
     integer :: mpitype, mpi_noghost
@@ -610,7 +625,6 @@ CONTAINS
     type(sdf_file_handle) :: sdf_handle
     type(jobid_type) :: jobid
 
-    
     call sdf_open(sdf_handle, filename, mpi_comm_world, c_sdf_read)   
     call sdf_read_header(sdf_handle, step, time, code_name, code_io_version, &
          string_len, restart_flag)
@@ -635,10 +649,10 @@ CONTAINS
        end if
     end do
 
-    !block_id = tmpblock_id(2:len(tmpblock_id)) 
-    !print *,' block_id:: ', block_id
     
   end subroutine read_derived_variables
+
+
   
-END MODULE read_support_2d
+END MODULE read_support_3d
 

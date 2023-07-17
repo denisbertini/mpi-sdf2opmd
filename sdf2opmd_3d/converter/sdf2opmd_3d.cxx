@@ -20,8 +20,8 @@ using namespace std;
 
 extern "C" {
   struct part{
-    int   l_x, l_y, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm;
-    double *x, *y, *w,  *px, *py, *pz, *vx, *vy, *vz, *ek, *rm, *gm;
+    int   l_x, l_y, l_z, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm;
+    double *x, *y, *z, *w,  *px, *py, *pz, *vx, *vy, *vz, *ek, *rm, *gm;
   };
 
   
@@ -30,9 +30,9 @@ extern "C" {
 		     part* arrays, long* npart, long* npart_proc, long* start);
 
   struct field{
-    int   global_sx, global_sy, l_sx, l_sy, l_dx, l_dy, l_gridx, l_gridy, l_data_size;
+    int   global_sx, global_sy, global_sz, l_sx, l_sy, l_sz, l_dx, l_dy, l_dz, l_gridx, l_gridy, l_gridz, l_data_size;
     double stagger;
-    double* gridx,  *gridy, *l_field_data;
+    double* gridx,  *gridy, *gridz, *l_field_data;
   };
 
   
@@ -90,15 +90,15 @@ int sdf_io(int argc, char *argv[]) {
   if (mpi_rank == 0 ){
     if ( info_name.length() == 0 ){
       std::cout << std::endl;
-      std::cout << "sdf2opmd_2d: file to process: " << sdf_file.c_str() << std::endl;
-      std::cout << "sdf2opmd_2d: field name list: " << field_name.c_str() << std::endl;
-      std::cout << "sdf2opmd_2d: species name list: " << species_name.c_str() << std::endl;
-      std::cout << "sdf2opmd_2d: derived name list: " << derived_name.c_str() << std::endl;    
-      std::cout << "sdf2opmd_2d: output format: " << output_format.c_str() << std::endl;
+      std::cout << "sdf2opmd_3d: file to process: " << sdf_file.c_str() << std::endl;
+      std::cout << "sdf2opmd_3d: field name list: " << field_name.c_str() << std::endl;
+      std::cout << "sdf2opmd_3d: species name list: " << species_name.c_str() << std::endl;
+      std::cout << "sdf2opmd_3d: derived name list: " << derived_name.c_str() << std::endl;    
+      std::cout << "sdf2opmd_3d: output format: " << output_format.c_str() << std::endl;
       std::cout << std::endl;
     }else{
       std::cout << std::endl;
-      std::cout << "sdf2opmd_2d: dry run:  reading SDF blocks info: " << info_name << " from file: " << sdf_file << std::endl;      
+      std::cout << "sdf2opmd_3d: dry run:  reading SDF blocks info: " << info_name << " from file: " << sdf_file << std::endl;      
       std::cout << std::endl;
     }
   }
@@ -174,10 +174,10 @@ int sdf_io(int argc, char *argv[]) {
     if (0 == mpi_rank){
       std::cout << std::endl;      
       std::cout << " C side: read_field: " << blockid.c_str() << std::endl;
-      std::cout << " global sizes sx: " << field_x.global_sx << "  sy: " << field_x.global_sy << std::endl;
-      std::cout << " local sizes l_sx: " << field_x.l_sx << " l_sy: " << field_x.l_sy << std::endl;
-      std::cout << " start sizes    st_x: " << field_x.l_dx << " st_y: " << field_x.l_dy << std::endl;
-      std::cout << " grid  size  x: " << field_x.l_gridx << " y: " << field_x.l_gridy << std::endl; 
+      std::cout << " global sizes sx: " << field_x.global_sx << "  sy: " << field_x.global_sy << "  sz: " << field_x.global_sz << std::endl;
+      std::cout << " local sizes l_sx: " << field_x.l_sx << " l_sy: " << field_x.l_sy << " l_sz: " << field_x.l_sz << std::endl;
+      std::cout << " start sizes    st_x: " << field_x.l_dx << " st_y: " << field_x.l_dy << " st_z: " << field_x.l_dz << std::endl;
+      std::cout << " grid  size  x: " << field_x.l_gridx << " y: " << field_x.l_gridy << " z: " << field_x.l_gridz << std::endl; 
       std::cout << std::endl;
     }
 
@@ -187,32 +187,44 @@ int sdf_io(int argc, char *argv[]) {
       series.iterations[1].meshes["grid_x"][MeshRecordComponent::SCALAR];
     MeshRecordComponent gy_mesh =
       series.iterations[1].meshes["grid_y"][MeshRecordComponent::SCALAR];
+    MeshRecordComponent gz_mesh =
+      series.iterations[1].meshes["grid_z"][MeshRecordComponent::SCALAR];
         
     Datatype dtype = determineDatatype<double>();;
     Extent extent_x = {field_x.l_gridx};
     Dataset dataset_x = Dataset(dtype, extent_x);
     Extent extent_y = {field_x.l_gridy};
     Dataset dataset_y = Dataset(dtype, extent_y);
+    Extent extent_z = {field_x.l_gridz};
+    Dataset dataset_z = Dataset(dtype, extent_z);
+    
     
     gx_mesh.resetDataset(dataset_x);
     gy_mesh.resetDataset(dataset_y);
+    gz_mesh.resetDataset(dataset_z);    
     
     Offset offset_x = {0};
-    Offset offset_y = {0};      
+    Offset offset_y = {0};
+    Offset offset_z = {0};
+    
     gx_mesh.storeChunkRaw( (field_x.gridx), offset_x, extent_x);
     gy_mesh.storeChunkRaw( (field_x.gridy), offset_y, extent_y);      
+    gz_mesh.storeChunkRaw( (field_x.gridz), offset_z, extent_z);
     
     // Load fields values 
     // Remap in 2D using vector
     const int nx = field_x.l_sx;
     const int ny = field_x.l_sy;
+    const int nz = field_x.l_sz;
     std::vector<double> v_map;
     
-    // Fill the 2D vector map
+    // Fill the 3D vector map
     for (int i=0;i<nx; i++){
       for (int j=0;j<ny; j++){
-	int l_index = ((j) * nx) + (i);
-	v_map.push_back(field_x.l_field_data[l_index]);
+	for (int kk=0;kk<nz; kk++){
+	  int l_index = (kk*nx*ny) + (j*nx) + (i);
+	  v_map.push_back(field_x.l_field_data[l_index]);
+	}
       }
     }
     
@@ -227,7 +239,7 @@ int sdf_io(int argc, char *argv[]) {
     
     // Only 1D domain decomposition in first index
     Datatype datatype = determineDatatype<double>();
-    Extent global_extent = {field_x.global_sx, field_x.global_sy};
+    Extent global_extent = {field_x.global_sx, field_x.global_sy, field_x.global_sz};
     Dataset dataset = Dataset(datatype, global_extent);
     
     
@@ -239,8 +251,9 @@ int sdf_io(int argc, char *argv[]) {
     ex_mesh.resetDataset(dataset);
     
     // example shows a 1D domain decomposition in first index
-    Offset chunk_offset = {field_x.l_dx, field_x.l_dy};
-    Extent chunk_extent = {field_x.l_sx, field_x.l_sy};
+    Offset chunk_offset = {field_x.l_dx, field_x.l_dy, field_x.l_dz};
+    Extent chunk_extent = {field_x.l_sx, field_x.l_sy, field_x.l_sz};
+    
     
     // Store the 2D map
     ex_mesh.storeChunk(v_map, chunk_offset, chunk_extent);
@@ -272,10 +285,10 @@ int sdf_io(int argc, char *argv[]) {
     if (0 == mpi_rank){
       std::cout << std::endl;      
       std::cout << " C side: read_field: " << blockid.c_str() << std::endl;
-      std::cout << " global sizes sx: " << field_x.global_sx << "  sy: " << field_x.global_sy << std::endl;
-      std::cout << " local sizes l_sx: " << field_x.l_sx << " l_sy: " << field_x.l_sy << std::endl;
-      std::cout << " start sizes    st_x: " << field_x.l_dx << " st_y: " << field_x.l_dy << std::endl;
-      std::cout << " grid  size  x: " << field_x.l_gridx << " y: " << field_x.l_gridy << std::endl; 
+      std::cout << " global sizes sx: " << field_x.global_sx << "  sy: " << field_x.global_sy << "  sz: " << field_x.global_sz << std::endl;
+      std::cout << " local sizes l_sx: " << field_x.l_sx << " l_sy: " << field_x.l_sy << " l_sz: " << field_x.l_sz << std::endl;
+      std::cout << " start sizes    st_x: " << field_x.l_dx << " st_y: " << field_x.l_dy << " st_z: " << field_x.l_dz << std::endl;
+      std::cout << " grid  size  x: " << field_x.l_gridx << " y: " << field_x.l_gridy << " z: " << field_x.l_gridz << std::endl; 
       std::cout << std::endl;
     }
 
@@ -285,34 +298,46 @@ int sdf_io(int argc, char *argv[]) {
       series.iterations[1].meshes["grid_x"][MeshRecordComponent::SCALAR];
     MeshRecordComponent gy_mesh =
       series.iterations[1].meshes["grid_y"][MeshRecordComponent::SCALAR];
+    MeshRecordComponent gz_mesh =
+      series.iterations[1].meshes["grid_z"][MeshRecordComponent::SCALAR];    
         
     Datatype dtype = determineDatatype<double>();;
     Extent extent_x = {field_x.l_gridx};
     Dataset dataset_x = Dataset(dtype, extent_x);
     Extent extent_y = {field_x.l_gridy};
     Dataset dataset_y = Dataset(dtype, extent_y);
+    Extent extent_z = {field_x.l_gridz};
+    Dataset dataset_z = Dataset(dtype, extent_z);    
     
     gx_mesh.resetDataset(dataset_x);
     gy_mesh.resetDataset(dataset_y);
+    gz_mesh.resetDataset(dataset_z);
     
     Offset offset_x = {0};
-    Offset offset_y = {0};      
+    Offset offset_y = {0};
+    Offset offset_z = {0};    
+    
     gx_mesh.storeChunkRaw( (field_x.gridx), offset_x, extent_x);
-    gy_mesh.storeChunkRaw( (field_x.gridy), offset_y, extent_y);      
+    gy_mesh.storeChunkRaw( (field_x.gridy), offset_y, extent_y);
+    gz_mesh.storeChunkRaw( (field_x.gridz), offset_z, extent_z);          
     
     // Load fields values 
     // Remap in 2D using vector
     const int nx = field_x.l_sx;
     const int ny = field_x.l_sy;
+    const int nz = field_x.l_sz;    
     std::vector<double> v_map;
     
     // Fill the 2D vector map
     for (int i=0;i<nx; i++){
       for (int j=0;j<ny; j++){
-	int l_index = ((j) * nx) + (i);
-	v_map.push_back(field_x.l_field_data[l_index]);
+	for (int kk=0;kk<nz; kk++){
+	  int l_index = (kk*nx*ny) + (j*nx) + (i);
+	  v_map.push_back(field_x.l_field_data[l_index]);
+	}
       }
     }
+
     
     // print the 2D map
     //for(int i = 0; i < nx*ny; i++) std::cout << " i: " << i << " val: " <<  v_map[i] << std::endl; 
@@ -323,7 +348,7 @@ int sdf_io(int argc, char *argv[]) {
     
     // Only 1D domain decomposition in first index
     Datatype datatype = determineDatatype<double>();
-    Extent global_extent = {field_x.global_sx, field_x.global_sy};
+    Extent global_extent = {field_x.global_sx, field_x.global_sy, field_x.global_sz};
     Dataset dataset = Dataset(datatype, global_extent);
     
     
@@ -335,8 +360,9 @@ int sdf_io(int argc, char *argv[]) {
     ex_mesh.resetDataset(dataset);
     
     // example shows a 1D domain decomposition in first index
-    Offset chunk_offset = {field_x.l_dx, field_x.l_dy};
-    Extent chunk_extent = {field_x.l_sx, field_x.l_sy};
+    Offset chunk_offset = {field_x.l_dx, field_x.l_dy, field_x.l_dz};
+    Extent chunk_extent = {field_x.l_sx, field_x.l_sy, field_x.l_sz};
+    
     
     // Store the 2D map
     ex_mesh.storeChunk(v_map, chunk_offset, chunk_extent);
@@ -394,6 +420,8 @@ int sdf_io(int argc, char *argv[]) {
     assert( arrays.l_x  == e_npart_proc );
     if (arrays.l_y>0) 
     assert( arrays.l_y  == e_npart_proc );
+    if (arrays.l_z>0) 
+    assert( arrays.l_z  == e_npart_proc );    
     if (arrays.l_w>0) 
     assert( arrays.l_w  == e_npart_proc );
     
@@ -455,11 +483,18 @@ int sdf_io(int argc, char *argv[]) {
       e["position"]["x"].storeChunkRaw( (arrays.x), chunk_offset, chunk_extent);
     }
     
+    //Y
     if (arrays.l_y>0){         
       e["position"]["y"].resetDataset(dataset);
       e["position"]["y"].storeChunkRaw( (arrays.y), chunk_offset, chunk_extent);
     }
-    
+
+    //Z
+    if (arrays.l_z>0){         
+      e["position"]["z"].resetDataset(dataset);
+      e["position"]["z"].storeChunkRaw( (arrays.z), chunk_offset, chunk_extent);
+    }
+
     auto const scalar = openPMD::RecordComponent::SCALAR;
     
     if (arrays.l_w>0){         
@@ -508,7 +543,7 @@ int main(int argc, char *argv[])
 
   if ( 0 == mpi_rank ) {
     std::cout << std::endl;
-    std::cout <<"sdf2opmd_1d:: MPI initialized with size: " << mpi_size << " : " << mpi_rank << std::endl;
+    std::cout <<"sdf2opmd_3d:: MPI initialized with size: " << mpi_size << " : " << mpi_rank << std::endl;
     std::cout << std::endl;
   }
 

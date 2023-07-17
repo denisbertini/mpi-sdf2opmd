@@ -1,6 +1,6 @@
-module sdf_interface_2d
+module sdf_interface_1d
   use, intrinsic :: iso_c_binding
-  use read_support_2d
+  use read_support_1d
   use sdf
   
   implicit none
@@ -22,21 +22,21 @@ contains
     character(len=blen)                              :: cblockid
 
     real(c_double), dimension(:,:), allocatable      :: field_data
-    real(c_double)                                   :: stag_x, stag_y
-    character(LEN=10*c_id_length)                       :: block_id
-    real(num), dimension(:),    allocatable          :: grid_x, grid_y
+    real(c_double)                                   :: stag_x
+    character(LEN=10*c_id_length)                    :: block_id
+    real(num), dimension(:),    allocatable          :: grid_x 
     real(num)                                        :: norm
     character(len=c_id_length)                       :: units, mesh_id
     character(len=c_max_string_length)               :: name
     integer, dimension(4)                            :: dims, local_starts, local_sizes
-    integer                                          :: i, j, stagger_x, stagger_y, l_index 
+    integer                                          :: i, j, stagger_x, l_index 
     character(LEN=c_max_string_length)               :: filename
-    real(c_double), allocatable, target, save       :: lin_field_data(:), cgrid_x(:), cgrid_y(:)    
+    real(c_double), allocatable, target, save       :: lin_field_data(:), cgrid_x(:)    
 
    type, bind(C) :: field
-       integer (c_int) :: global_sx, global_sy, l_sx, l_sy, l_dx, l_dy, l_gridx, l_gridy, l_data_size
+       integer (c_int) :: global_sx, l_sx, l_dx, l_gridx, l_data_size
        real(c_double)  :: staggger
-       type(c_ptr)     :: gridx, gridy, l_field_data 
+       type(c_ptr)     :: gridx, l_field_data 
     end type  field
 
     type(field), intent(out) :: cfield_data_x
@@ -48,8 +48,7 @@ contains
     block_id = cblockid  
     
     ! Get Derived Variables
-    call read_derived_variables(filename, block_id, field_data, grid_x, grid_y, name, units, &
-         dims, stagger_x, mesh_id, norm, local_sizes, local_starts)
+    call read_derived_variables(filename)
 
    end subroutine read_derived_vars
 
@@ -64,22 +63,22 @@ contains
     character(len=clen)                              :: fstring
     character(len=blen)                              :: cblockid
 
-    real(c_double), dimension(:,:), allocatable      :: field_data
-    real(c_double)                                   :: stag_x, stag_y
-    character(LEN=c_id_length)                       :: block_id
-    real(num), dimension(:),    allocatable          :: grid_x, grid_y
+    real(c_double), dimension(:), allocatable        :: field_data
+    real(c_double)                                   :: stag_x
+    character(len=c_id_length)                       :: block_id
+    real(num), dimension(:),    allocatable          :: grid_x
     real(num)                                        :: norm
     character(len=c_id_length)                       :: units, mesh_id
     character(len=c_max_string_length)               :: name
     integer, dimension(4)                            :: dims, local_starts, local_sizes
-    integer                                          :: i, j, stagger_x, stagger_y, l_index 
+    integer                                          :: i, j, stagger_x, l_index 
     character(LEN=c_max_string_length)               :: filename
-    real(c_double), allocatable, target, save       :: lin_field_data(:), cgrid_x(:), cgrid_y(:)    
+    real(c_double), allocatable, target, save        :: lin_field_data(:), cgrid_x(:)    
 
    type, bind(C) :: field
-       integer (c_int) :: global_sx, global_sy, l_sx, l_sy, l_dx, l_dy, l_gridx, l_gridy, l_data_size
+       integer (c_int) :: global_sx, l_sx, l_dx, l_gridx, l_data_size
        real(c_double)  :: staggger
-       type(c_ptr)     :: gridx, gridy, l_field_data 
+       type(c_ptr)     :: gridx, l_field_data 
     end type  field
 
     type(field), intent(out) :: cfield_data_x 
@@ -92,7 +91,7 @@ contains
     
     ! Get Fields Data
     print*, ' block_id: ', block_id
-      call read_field_data_r8(filename, block_id, field_data, grid_x, grid_y, name, units, &
+      call read_field_data_r8(filename, block_id, field_data, grid_x, name, units, &
            dims, stagger_x, mesh_id, norm, local_sizes, local_starts)
 
     if (stagger_x == c_stagger_face_x) then
@@ -101,43 +100,27 @@ contains
 
     ! Domain partition 
     cfield_data_x%global_sx = dims(1)
-    cfield_data_x%global_sy = dims(2)    
     cfield_data_x%l_sx = local_sizes(1)
-    cfield_data_x%l_sy = local_sizes(2)
     cfield_data_x%l_dx = local_starts(1)
-    cfield_data_x%l_dy = local_starts(2)
 
     ! Arrays sizes
     cfield_data_x%l_gridx = size(grid_x)
-    cfield_data_x%l_gridy = size(grid_y)
     cfield_data_x%l_data_size = size(field_data)
     
     ! Assign arrays
     if (allocated(cgrid_x)) deallocate(cgrid_x)  
     allocate (cgrid_x(cfield_data_x%l_gridx))
-    if (allocated(cgrid_y)) deallocate(cgrid_y)  
-    allocate (cgrid_y(cfield_data_x%l_gridy))
     if (allocated(lin_field_data)) deallocate(lin_field_data)  
     allocate (lin_field_data(0:cfield_data_x%l_data_size-1))
     
     cgrid_x(1:cfield_data_x%l_gridx) = grid_x(1:cfield_data_x%l_gridx)
     cfield_data_x%gridx = c_loc(cgrid_x)
-    cgrid_y(1:cfield_data_x%l_gridy) = grid_y(1:cfield_data_x%l_gridy)
-    cfield_data_x%gridy = c_loc(cgrid_y)
 
-   
     ! Transform field to linear array
      do i=1, local_sizes(1)
-       do j=1, local_sizes(2)
-          ! offset = i_col*N_rows+i_row 
-          l_index = ((j-1) * local_sizes(1)) + (i-1)  
-          lin_field_data(l_index) = field_data(i,j)
-          !if ( (i<10) .and. (j<2) ) then  
-          !   print *,' i: ', i, ' j: ', j, ' lin: ' , l_index, ' lin_data: ', lin_field_data(l_index), &
-          !        ' field_data: ', field_data(i,j)  
-          !end if
+          l_index = i  
+          lin_field_data(l_index) = field_data(i)
        end do
-    end do 
 
    cfield_data_x%l_field_data = c_loc(lin_field_data)
       
@@ -154,9 +137,9 @@ contains
 
     real(c_double), dimension(:,:), allocatable, target  :: particle_data
     character(LEN=c_id_length),   dimension(:),   allocatable, target  :: columns
-    real(c_double), dimension(:),   allocatable          :: grid_x, grid_y
+    real(c_double), dimension(:),   allocatable          :: grid_x
     real(c_double), allocatable, target, save            :: eta_px(:), eta_py(:), eta_pz(:)
-    real(c_double), allocatable, target, save            :: eta_x(:), eta_y(:), eta_w(:)
+    real(c_double), allocatable, target, save            :: eta_x(:), eta_w(:)
     real(c_double), allocatable, target, save            :: eta_vx(:), eta_vy(:), eta_vz(:)
     real(c_double), allocatable, target, save            :: eta_ek(:), eta_rm(:), eta_gm(:)
 
@@ -166,8 +149,8 @@ contains
     integer                    :: i , j, ipos
     
     type, bind(C) :: part
-       integer (c_int) :: l_x, l_y, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm
-       type(c_ptr)     ::   x,   y,   w,   px,   py,   pz,   vx,   vy,   vz,   ek,   rm,   gm 
+       integer (c_int) :: l_x, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm
+       type(c_ptr)     ::   x,   w,   px,   py,   pz,   vx,   vy,   vz,   ek,   rm,   gm 
     end type  part
     
     type(part), intent(out) :: arrays 
@@ -204,16 +187,6 @@ contains
        arrays%x   = c_null_ptr         
     end if
 
-    if ( get_index(columns, 'gridy', species_name) > 0) then 
-       arrays%l_y  = size(particle_data(:, get_index(columns, 'gridy', species_name))) 
-       if (allocated(eta_y)) deallocate(eta_y)  
-       allocate (eta_y(arrays%l_y))
-       eta_y(1:arrays%l_y) = particle_data(1:arrays%l_y, get_index(columns, 'gridy', species_name)) 
-       arrays%y = c_loc(eta_y)
-    else
-       arrays%l_y = 0
-       arrays%y   = c_null_ptr         
-    end if
 
     if ( get_index(columns, 'weight', species_name) > 0) then
        arrays%l_w  = size(particle_data(:, get_index(columns, 'weight', species_name)))
@@ -363,4 +336,4 @@ contains
     
   end function get_index
   
-end module sdf_interface_2d
+end module sdf_interface_1d
