@@ -52,7 +52,7 @@ void getfullInfo(const std::string& fname){
               << "meshesPath - " << o.meshesPath() << '\n'
               << "openPMD - " << o.openPMD() << '\n'
               << "openPMDextension - " << o.openPMDextension() << '\n'
-              << "particlesPath - " << o.particlesPath() << '\n'
+      //  << "particlesPath - " << o.particlesPath() << '\n'
               << '\n';
 
     std::cout << "Read attributes in basePath:\n";
@@ -112,15 +112,16 @@ int main(int argc, char *argv[])
     // Initiate the reading procedure
 
     getfullInfo(fname);
-    return 0;  
+     
+
+    std::cout << " Now create a serie " << std::endl;
     
     // Create a series and open the file
     Series series = Series( fname, Access::READ_ONLY);
     
     cout << "Read a Series with openPMD standard version "
          << series.openPMD() << '\n';
-    cout << "The Series contains " << series.iterations.size() << " iterations:";
-
+    cout << "The Series contains " << series.iterations.size() << " iterations:"; 
 
     // Loop over all iterations in the file
     int iter=0;
@@ -143,7 +144,7 @@ int main(int argc, char *argv[])
       Iteration j = i.second;
     
       // Particles Species      
-      openPMD::ParticleSpecies deuterons = j.particles["deuteron"];
+      openPMD::ParticleSpecies deuterons = j.particles["electron_l"];
       //std::shared_ptr<double> charge = electrons["charge"][openPMD::RecordComponent::SCALAR].loadChunk<double>();
       series.flush();
       

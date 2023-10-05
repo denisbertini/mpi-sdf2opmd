@@ -218,8 +218,8 @@ CONTAINS
     call mpi_comm_size(mpi_comm_world, total_procs, ierr)
     call dims_for_rank(dims, rank, total_procs, local_sizes, local_starts)
 
-    print*, ' read_field_data_r8():' 
-    print*, 'rank: ', rank, ' sizes: ', local_sizes, ' starts: ', local_starts
+    !print*, ' read_field_data_r8():' 
+    !print*, 'rank: ', rank, ' sizes: ', local_sizes, ' starts: ', local_starts
     
     allocate(field_data(local_sizes(1), local_sizes(2)))
     field_data = 0.0_num

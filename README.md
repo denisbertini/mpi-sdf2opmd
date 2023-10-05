@@ -97,7 +97,7 @@ The converter has been tested with the standard [pp-containers](https://git.gsi.
 
 ### Compilation
 
-- first launch the container on bare-etal submit node `virgo2.hpc.gsi.de`, for example:
+- first launch the container on baremetal submit node `virgo2.hpc.gsi.de`, for example:
 
 ```
 export CONT=/lustre/rz/dbertini/containers/prod/rlx8_ompi_ucx.sif
@@ -165,6 +165,5 @@ $SIMDIR/bin/sdf2opmd_1d -f $SIMDIR/sim/epoch1d/data/0100.sdf -m ex -d $derived_d
 The converted output file is written in the same directory as the input SDF file with the extention corresponding to either
 - `HDF5: .h5` 
 - `ADIOS: .bp`
-
 
 

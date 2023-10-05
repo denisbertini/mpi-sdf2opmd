@@ -91,7 +91,7 @@ contains
     block_id = cblockid  
     
     ! Get Fields Data
-    print*, ' block_id: ', block_id
+    !print*, ' block_id: ', block_id
       call read_field_data_r8(filename, block_id, field_data, grid_x, grid_y, name, units, &
            dims, stagger_x, mesh_id, norm, local_sizes, local_starts)
 
