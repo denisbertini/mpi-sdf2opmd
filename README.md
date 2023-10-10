@@ -25,11 +25,13 @@ HPC systems.
 
 To convert a 1D/2D or 3D SDF file: 
 ```
-mpirun -n N sdf2opmd_1d/2d/3d -f <sdf_file> -m <fields> -d <derived_fields> -s <particles> -o <output_format>
+mpirun -n N sdf2opmd_1d/2d/3d -p <dir> -f <sdf_file> -m <fields> -d <derived_fields> -s <particles> -o <output_format>
 ```
 where
 
-- `<sdf_file>` is the full name of the input SDF file including full path
+- `<dir>` is the directory where the Epoch SDF output files are stored. if only the `-p` option is used all the SDF files from the input directory `<dir>` will be converted. 
+
+- `<sdf_files>` is a list of  input SDF file to be converted from the input directory <dir>. Example: `-f "0012.sdf:0014.sdf" option will tell the converter to only convert files `0012.sdf` and `0014.sdf` from the input directory.
 
 - `<fields>` is the list of relevant fields to be converted. For example to convert all electrical fields components use
 the options `-m ex:ey:ez` 
@@ -48,7 +50,7 @@ format.
 
 To obtain the SDF input file layout:
 ```
-mpirun -n N sdf2opmd_1d/2d/3d -i all -f <sdf_file>
+mpirun -n N sdf2opmd_1d/2d/3d -i all -p <dir> -f <sdf_files>
 ```
 This will not perform any conversion but gives the meta-data contents of the input SDF file.
 Example output:
@@ -142,7 +144,11 @@ export CONT=/lustre/rz/dbertini/containers/prod/rlx8_ompi_ucx.sif
 export APPTAINER_BINDPATH=/lustre/rz/dbertini/,/cvmfs
 export OMPI_MCA_io=romio321
 
-srun --export=ALL  singularity exec $CONT ./convert.sh 
+# Select files to convert
+files="0012.sdf:0014.sdf"
+
+srun --export=ALL  singularity exec $CONT ./convert.sh $files
+
 ```
 
 - `convert.sh`
@@ -150,20 +156,52 @@ srun --export=ALL  singularity exec $CONT ./convert.sh
 ```
 #!/bin/bash
 export SIMDIR=/lustre/rz/dbertini/sdf2opmd
-
 export PATH=$SIMDIR/bin:$PATH
 export LD_LIBRARY_PATH=$SIMDIR/lib:$LD_LIBRARY_PATH
+
+# Define SDF files from args
+sdf_files=$1
 
 # Define the derived data that should be included in the conversion
 export derived_data=charge_density:number_density
 
+# Convert all SDF files from input directory  to HDF5 format 
+$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data  -m ex:ey:ez -d $derived_data -s electron_r:electron_l -o hdf5
+
 # Convert SDF to ADIOS2 format including selection
-$SIMDIR/bin/sdf2opmd_1d -f $SIMDIR/sim/epoch1d/data/0100.sdf -m ex -d $derived_data -s electron_l:electron_r -o adios
+$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_r:electron_l -o adios
 
 ```
 
-The converted output file is written in the same directory as the input SDF file with the extention corresponding to either
+### Converted File Outputs
+
+The converted output file is written in the `sbatch` output directory. In the above example, the converted files will be written in the `data` sub-directory   `sbatch -D ./data ...`  with the extention corresponding to either
 - `HDF5: .h5` 
 - `ADIOS: .bp`
 
 
+Example:
+```
+.
+├── convert_mult_file.sh
+├── convert.sh
+├── data
+│   ├── 0000.h5
+│   ├── 0001.h5
+│   ├── 0002.h5
+│   ├── 0003.h5
+│   ├── 0004.h5
+│   ├── 0005.h5
+│   ├── 0006.h5
+│   ├── 0007.h5
+│   ├── 0008.h5
+│   ├── 0009.h5
+│   ├── 0100.h5
+│   ├── 11860289.err.log
+│   ├── 11860289.out.log
+│   └── convert.sh -> ../convert.sh
+├── run-file.sh
+├── setup_mpi.sh
+└── submit.sh
+
+```
