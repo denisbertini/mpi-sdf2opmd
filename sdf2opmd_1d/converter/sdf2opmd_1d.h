@@ -12,6 +12,11 @@
 #include <memory>
 #include <numeric>
 
+//Filesystem 
+#include <filesystem>
+#include <sys/stat.h>
+#include <algorithm>
+
 // MPI
 #include "mpi.h"
 
@@ -29,27 +34,29 @@ namespace converter
   namespace dim_1
   {
 
-extern "C" {
-  struct part{
-    int   l_x, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm;
-    double *x, *w,  *px, *py, *pz, *vx, *vy, *vz, *ek, *rm, *gm;
-  };
- 
-  void read_particle(const char* cstring, int clen,
-		     const char* spec,    int len_sp,
-		     part* arrays, long* npart, long* npart_proc, long* start);
-
-  struct field{
-    int   global_sx, l_sx, l_dx, l_gridx, l_data_size;
-    double stagger;
-    double* gridx, *l_field_data;
-  };
-  
-  void read_fields( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);
-  void read_derived_vars( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);    
-  void init_read();  
-}
-
+    namespace fs = std::filesystem;
+    
+    extern "C" {
+      struct part{
+	int   l_x, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm;
+	double *x, *w,  *px, *py, *pz, *vx, *vy, *vz, *ek, *rm, *gm;
+      };
+      
+      void read_particle(const char* cstring, int clen,
+			 const char* spec,    int len_sp,
+			 part* arrays, long* npart, long* npart_proc, long* start);
+      
+      struct field{
+	int   global_sx, l_sx, l_dx, l_gridx, l_data_size;
+	double stagger;
+	double* gridx, *l_field_data;
+      };
+      
+      void read_fields( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);
+      void read_derived_vars( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);    
+      void init_read();  
+    }
+    
     namespace si_units{
       enum si_units_t
 	{
@@ -62,6 +69,49 @@ extern "C" {
 	  luminousIntensity = 6, // J
 	};
     }
+
+
+    std::vector<std::string> intersection(std::vector<std::string> v1,
+					  std::vector<std::string> v2){
+      std::vector<std::string> v3;
+      
+      std::sort(v1.begin(), v1.end());
+      std::sort(v2.begin(), v2.end());
+      
+      std::set_intersection(v1.begin(),v1.end(),
+			    v2.begin(),v2.end(),
+			    back_inserter(v3));
+      return v3;
+    }
+
+    std::vector<std::string> get_common_files(std::vector<std::string> vfiles, std::string sdf_dir )   
+    {
+      struct stat sb;
+      std::vector<std::string> vec;
+      
+      for (const auto& entry : fs::directory_iterator(sdf_dir)) {	
+        std::filesystem::path outfilename = entry.path();
+        // Only keep sdf files  
+	if (outfilename.extension() != ".sdf") continue;
+	
+	std::string outfilename_str = outfilename.string();
+        const char* path = outfilename_str.c_str();
+	
+        // Testing whether the path points to a
+        // non-directory or not If it does, displays path
+        if (stat(path, &sb) == 0 && !(sb.st_mode & S_IFDIR))
+	  {
+	    std ::cout << "found file: " << path << std::endl;
+	    vec.push_back(outfilename);
+	  }
+      }//! for
+  
+      if (!vfiles.empty())
+	return intersection(vfiles,vec); 
+      else
+	return vec;      
+    }     
+
     
     inline
     std::vector<std::string> split(const char *str, char c = ':')
