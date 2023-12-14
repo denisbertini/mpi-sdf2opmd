@@ -205,3 +205,20 @@ Example:
 └── submit.sh
 
 ```
+
+
+### Compression via Particle Merging
+
+The converter can on demand perform data compression. For that purpose, the  particle merging algorithm as described in
+[M. Vranic et al. (2005)](https://www.sciencedirect.com/science/article/abs/pii/S0010465515000405?via%3Dihub) is used.
+The algorithm implementation is similar to the one used in the 
+[Smilei pic code](https://smileipic.github.io/Smilei/Understand/particle_merging.html) and uses a cartesian momentum
+discretization.
+
+To activate the compression, just add `-z cartesian` as additional option to the converter (2D/3D only):
+
+```
+# Convert SDF to ADIOS2 format including selection
+$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_r:electron_l -z cartesian -o adios
+
+```

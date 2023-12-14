@@ -397,7 +397,7 @@ namespace converter
 	              << std::endl; 
 	  }
 	  
-	  // All particle momenta are not collinear
+	  // All particle momenta are not null
 	  if (fabs(u3_x*u3_x + u3_y*u3_y + u3_z*u3_z) > 0)
 	    {
 	      
