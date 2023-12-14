@@ -423,7 +423,7 @@ CONTAINS
       IF (TRIM(species_id) == species_name) THEN
         ! Read this procs grid
         CALL sdf_read_point_mesh(sdf_handle, npart_proc, mpitype, it_part_mesh)
-        IF (rank == 0) PRINT*, 'Columns 1 to',c_ndims,' are ', block_id
+        IF (rank == 0) PRINT*, 'Columns 1 to',c_ndims,' Columns', current_var, ' is ', block_id
       END IF
     END DO
 
@@ -456,7 +456,7 @@ CONTAINS
     allocate (columns(current_var));
     columns(1) = 'gridx'
     columns(2) = 'gridy'
-    columns(2) = 'gridz'    
+    columns(3) = 'gridz'    
        
     CALL sdf_seek_start(sdf_handle)
     current_var = c_ndims+1

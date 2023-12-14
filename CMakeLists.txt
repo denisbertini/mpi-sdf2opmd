@@ -120,7 +120,7 @@ message(STATUS "C++ compiler identification is : ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "EPOCH     PATH is : ${EPOCH_PATH}")
 message(STATUS "EPOCH SDF PATH is : ${SDF_PATH}")
 
-add_subdirectory( sdf2opmd_1d )
+#add_subdirectory( sdf2opmd_1d )
 add_subdirectory( sdf2opmd_2d )
 add_subdirectory( sdf2opmd_3d )
 

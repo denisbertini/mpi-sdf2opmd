@@ -3,7 +3,7 @@ find_package(openPMD 0.14.5 CONFIG)
 
 set(CMAKE_C_COMPILER "gcc")
 set(CMAKE_CXX_COMPILER "g++")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wno-narrowing")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wno-narrowing -fopenmp")
 
 SET ( EXECUTABLENAME sdf2opmd_3d )
 
@@ -14,6 +14,7 @@ SET ( ${EXECUTABLENAME}_SRCS
 include_directories(
         .
         ${CMAKE_SOURCE_DIR}/sdf2opmd_3d/src
+	${CMAKE_SOURCE_DIR}/sdf2opmd_3d/merger		
 )
 
 ADD_EXECUTABLE(${EXECUTABLENAME}

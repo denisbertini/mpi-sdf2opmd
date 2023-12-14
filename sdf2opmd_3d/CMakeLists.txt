@@ -1,4 +1,6 @@
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+
 message(STATUS "MPI_INCLUDE_PATH : ${MPI_INCLUDE_PATH}")
 message(STATUS "ROOT_INCLUDE_PATH : ${ROOT_INCLUDE_DIR}")
 message(STATUS "C++ compiler is : ${CMAKE_CXX_COMPILER}")
@@ -13,6 +15,7 @@ include_directories(include
         ${MPI_INCLUDE_PATH}  
 	${SDF_PATH}/include
 	${EPOCH_PATH}/epoch3d/obj
+	src/
 	}
 )
 
@@ -20,11 +23,13 @@ link_directories(${OTHER_LINK_DIR} ${SDF_PATH}/lib ${EPOCH_PATH}/epoch3d/obj/)
 
 set( SDFOPMD3D_HEADERS
 	src/cxxopts.hpp
+	src/utils.h
 )
 
 set( SDFOPMD3D_SRCS
 	src/sdf_interface.f90
 	src/sdf_reader.f90
+	merger/merger_3d.cxx
 )
 
 
@@ -46,7 +51,6 @@ set_target_properties(SDFOPMD3D PROPERTIES LINKER_LANGUAGE CXX)
 
 # Add executables
 add_subdirectory(converter)
-#add_subdirectory(reader)
 
 install(
         TARGETS SDFOPMD3D

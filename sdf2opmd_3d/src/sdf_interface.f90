@@ -93,7 +93,6 @@ contains
     block_id = cblockid  
     
     ! Get Fields Data
-    print*, ' block_id: ', block_id
       call read_field_data_r8(filename, block_id, field_data, grid_x, grid_y, grid_z, name, units, &
            dims, stagger_x, mesh_id, norm, local_sizes, local_starts)
 
@@ -216,6 +215,7 @@ contains
        allocate (eta_x(arrays%l_x))
        eta_x(1:arrays%l_x) = particle_data(1:arrays%l_x, get_index(columns, 'gridx', species_name)) 
        arrays%x = c_loc(eta_x)
+       !print*, 'read_particle rank: ', rank, ' x read: ', arrays%l_x 
     else
        arrays%l_x = 0
        arrays%x   = c_null_ptr         
@@ -227,6 +227,7 @@ contains
        allocate (eta_y(arrays%l_y))
        eta_y(1:arrays%l_y) = particle_data(1:arrays%l_y, get_index(columns, 'gridy', species_name)) 
        arrays%y = c_loc(eta_y)
+       !print*, 'read_particle rank: ', rank, ' y read: ', arrays%l_y        
     else
        arrays%l_y = 0
        arrays%y   = c_null_ptr         
@@ -236,7 +237,8 @@ contains
        arrays%l_z  = size(particle_data(:, get_index(columns, 'gridz', species_name))) 
        if (allocated(eta_z)) deallocate(eta_z)  
        allocate (eta_z(arrays%l_z))
-       eta_z(1:arrays%l_z) = particle_data(1:arrays%l_z, get_index(columns, 'gridz', species_name)) 
+       eta_z(1:arrays%l_z) = particle_data(1:arrays%l_z, get_index(columns, 'gridz', species_name))
+       !print*, 'read_particle rank: ', rank, ' z read: ', arrays%l_z               
        arrays%z = c_loc(eta_z)
     else
        arrays%l_z = 0

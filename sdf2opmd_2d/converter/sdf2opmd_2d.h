@@ -21,7 +21,10 @@
 #include "mpi.h"
 
 // Options
-#include "cxxopts.hpp"
+#include "cxxopts.h"
+
+// Utils
+#include "utils.h"
 
 // openPMD
 #include <openPMD/openPMD.hpp>
@@ -35,28 +38,6 @@ namespace converter
   {  
 
     namespace fs = std::filesystem;
-    
-    extern "C" {
-      struct part{
-	int   l_x, l_y, l_w, l_px, l_py, l_pz, l_vx, l_vy, l_vz, l_ek, l_rm, l_gm;
-	double *x, *y, *w,  *px, *py, *pz, *vx, *vy, *vz, *ek, *rm, *gm;
-      };
-      
-      
-      void read_particle(const char* cstring, int clen,
-			 const char* spec,    int len_sp,
-			 part* arrays, long* npart, long* npart_proc, long* start);
-      
-      struct field{
-	int   global_sx, global_sy, l_sx, l_sy, l_dx, l_dy, l_gridx, l_gridy, l_data_size;
-	double stagger;
-	double* gridx,  *gridy, *l_field_data;
-      };
-      
-      void read_fields( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);
-      void read_derived_vars( const char* cstring, int clen,  const char* blockid, int blen, field* field_x);        
-      void init_read();
-    }
     
     namespace si_units{
       enum si_units_t
@@ -101,7 +82,7 @@ namespace converter
         // non-directory or not If it does, displays path
         if (stat(path, &sb) == 0 && !(sb.st_mode & S_IFDIR))
 	  {
-	    std ::cout << "found file: " << path << std::endl;
+	    //std ::cout << "found file: " << path << std::endl;
 	    vec.push_back(outfilename);
 	  }
       }//! for

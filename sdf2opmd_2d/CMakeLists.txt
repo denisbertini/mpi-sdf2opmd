@@ -1,5 +1,5 @@
 
-
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
 message(STATUS "MPI_INCLUDE_PATH : ${MPI_INCLUDE_PATH}")
 message(STATUS "ROOT_INCLUDE_PATH : ${ROOT_INCLUDE_DIR}")
@@ -15,22 +15,24 @@ include_directories(include
         ${MPI_INCLUDE_PATH}  
 	${SDF_PATH}/include
 	${EPOCH_PATH}/epoch2d/obj
-	}
+	src/	
 )
 
 link_directories(${OTHER_LINK_DIR} ${SDF_PATH}/lib ${EPOCH_PATH}/epoch2d/obj/)
 
 set( SDFOPMD2D_HEADERS
-	src/cxxopts.hpp
+	src/cxxopts.h
+	src/utils.h
 )
 
 set( SDFOPMD2D_SRCS
 	src/sdf_interface.f90
 	src/sdf_reader.f90
+	merger/merger_2d.cxx
 )
 
+add_library( SDFOPMD2D SHARED ${SDFOPMD2D_SRCS} )
 
-add_library( SDFOPMD2D SHARED ${SDFOPMD2D_SRCS})
 
 target_link_libraries(SDFOPMD2D
    PRIVATE
