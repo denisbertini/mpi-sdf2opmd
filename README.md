@@ -207,19 +207,87 @@ Example:
 ```
 
 
-### Compression via Particle Merging
+### Particle data reduction via a particle merging method
 
-The converter can on demand perform data compression. For that purpose, the  particle merging algorithm as described in
-[M. Vranic et al. (2005)](https://www.sciencedirect.com/science/article/abs/pii/S0010465515000405?via%3Dihub) is used.
+In order to efficiently post-process the EPOCH simulation particle data, 
+it can be advantageous to reduce the original dataset without altering the main features of the underlying physics.
+Using internally the  particle merging algorithm as described in
+[M. Vranic et al. (2005)](https://www.sciencedirect.com/science/article/abs/pii/S0010465515000405?via%3Dihub) 
+the `sdf2opmd` converter is able to reduce the size of the simulationoutput particle dataset. 
 
 The algorithm implementation is inspired by the one used in the 
-[Smilei pic code](https://smileipic.github.io/Smilei/Understand/particle_merging.html) and uses a cartesian momentum
-discretization.
+[Smilei pic code](https://smileipic.github.io/Smilei/Understand/particle_merging.html) 
+and uses a cartesian momentum discretization model.
 
-To activate the compression, just add `-z cartesian` as additional option to the converter (2D/3D only):
+To activate the particle reduction , the user should define a binning for the particle 6D phase-space.
+This is done by adding the following option to the converter main executable (2D/3D converter only):
+
+```
+- `-z cart:nx:ny:nz;npx:npy:npz`
+```
+
+- the first field to the `-z` option defines the discretization method i.e `cart=cartesian`
+- `nx:ny:nz` defines the binning in the particle geometrical space respectively in the  `x`, `y`, and `z` direction.
+- `npx:npy:npz` defines the binning in the particle momentum space respectively in the  `x`, `y`, and `z` direction.
+
+#### 2D Example: 
+
+- cartesian discretization 
+- (4,4) binning in x and y direction
+- (6,6,6) binning in momentum space
+- output in ADIOS2 format
 
 ```
 # Convert SDF to ADIOS2 format including selection
-$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_r:electron_l -z cartesian -o adios
+$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_r:electron_l -z cart:4:4:6:6:6 -o adios
 
 ```
+
+#### 3D Example:
+
+- cartesian discretization 
+- (4,4,4) binning in x,y and z direction
+- (6,6,6) binning in momentum space
+- output in HDF5 format
+
+```
+$SIMDIR/bin/sdf2opmd_3d -p $SIMDIR/sim/epoch3d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_l:electron_r -z cart:4:4:4:8:8:8 -o hdf5
+```
+
+#### Results
+The converter reduction level depends on the user defined phase-space binning.
+In general defining a coarser phase space binning will tend to perform more particle merging 
+per cell and consquently will reduce more the original dataset.
+
+Example: 
+
+- Original 3D simulation SDF file size `111 MBytes`:
+```
+-rw-r--r--. 1 dbertini 111M Dec 12 20:35 0002.sdf
+```
+
+Convert and reduce with phase-space binning `-z cart:4:4:4:8:8:8`
+
+```
+-rw-r--r--. 1 dbertini  43M Dec 18 14:34 0002.h5
+```
+
+For this binning defintion, the original SDF dataset is reduced by a factor of more than 2.
+To adjust the binning ( which depends on the use case) the converter gives a summary of the reduction efficiency 
+per MPI rank i.e
+
+```
+p_cartesian statistics: total_cells: 3200 n_merged_cells: 1033 %(merged_cells): 32.2812 %
+
+rank: 0 initial npart: 10000 tagged indexes: 5529 final npart: 4471 reduction level: 44.71 %
+
+rank: 1 initial npart: 10000 tagged indexes: 5530 final npart: 4470 reduction level: 44.7 %
+
+rank: 2 initial npart: 10000 tagged indexes: 5734 final npart: 4266 reduction level: 42.66 %
+
+rank: 3 initial npart: 10000 tagged indexes: 4476 final npart: 5524 reduction level: 55.24 %
+
+```
+On can use this information for further phase-space binning fine tuning. 
+
+
