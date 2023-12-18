@@ -59,12 +59,33 @@ namespace converter
       return min_val;
     }
 
+
+
+    template<typename T> 
+    static bool isLess(T left, T right, bool orequal = false) {
+      T eps = static_cast<T>(std::numeric_limits<T>::epsilon);
+      if (std::fabs(left - right) < eps){
+	return (orequal);
+      }
+      return (left < right);
+    }
+  
+    template<typename T> 
+    static bool isGreater(T left, T right, bool orequal = false) {
+      if (std::fabs(left - right) < std::numeric_limits<T>::epsilon) {
+	return (orequal);
+      }
+      return (left > right);
+    }
+    
+    
     // Value is within the range [low, high).
     template <typename T>      
       bool is_inside(const T& value, const T& low, const T& high) {
       if ((high==0) && (low==0)) return true;
       if (high==low) return true;
       return !(value < low) && (value < high);
+      //return isGreater<T>(value,low) && isLess<T>(value, high);
     }
 
 

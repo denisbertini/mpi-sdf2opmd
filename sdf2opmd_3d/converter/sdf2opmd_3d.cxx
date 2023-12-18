@@ -107,6 +107,35 @@ namespace converter
 	  if ( !species_name.empty() )
 	    species_list = split(species_name.c_str());
 
+
+	  // Get compression parameters
+	  std::vector<std::string> compression_list;
+	  if ( !compression_name.empty() )
+	    compression_list = split(compression_name.c_str());	  
+	  
+	  std::string comp_type = compression_list[0];
+	  // Bining default definition for compression
+	  int  n_bins[3]  =  {4,4,4};
+	  int  p_bins[3]  =  {-1,-1,-1};
+          if (compression_list.size() >= 4){   
+	    for (int i=0;i<3;i++){
+	      n_bins[i]=std::atoi(compression_list[i+1].c_str());
+	    }
+	  }
+          if (compression_list.size() >= 7){   
+	    for (int i=0;i<3;i++){
+	      p_bins[i]=std::atoi(compression_list[i+4].c_str());
+	    }
+	  }
+	  
+          /*
+	  if (0 == mpi_rank){
+	    std::cout << std::endl; 
+	    for (int i=0;i<3; i++ ) std::cout << " i: " 
+                   << i << " n_bins: " << n_bins[i] 
+                   << " p_bins: " << p_bins[i] << std::endl;
+	  }
+          */
 	  
 	  // Output filename
 	  std::string hdf_file=sdf_file.substr(0,sdf_file.find_last_of('.'));
@@ -136,7 +165,7 @@ namespace converter
 	  Series series= Series(hdf_file.c_str(), Access::CREATE, MPI_COMM_WORLD);
 	  series.setAuthor("d.bertini@gsi.de");
 	  series.setMachine("Virgo2");
-	  series.setSoftwareDependencies("https://git.gsi.de/d.bertini/pp-containers:prod/rlx8_ompi_ucx.def");
+	  series.setSoftwareDependencies("https://git.gsi.de/d.bertini/pp-containers/prod/rlx8_ompi_ucx.def");
 	  series.setMeshesPath("fields/");
 	  series.setParticlesPath("particles/");
 	  series.setIterationEncoding(IterationEncoding::fileBased);
@@ -400,24 +429,15 @@ namespace converter
 	      assert( arrays.l_w  == e_npart_proc );
 	    
 
-	    if (!compression_name.empty()){
-	      if (compression_name=="cartesian") {
+	    if (!compression_list.empty()){
+	      if (compression_list[0]=="cart") {
 		
-	    // Bining definition for compression
-	    int  n_bins[3]  =  {4,4,4};
-	    int  p_bins[3]  =  {16,16,16};
-
             Merger_3d pm(mpi_rank,mpi_size);
 	    pm.setVerbose(1);
 	    pm.merge(arrays, n_bins, p_bins);
 	    
 	    // Get mask indexes
 	    std::vector<int> vec_mask = pm.get_mask_indexes();
-	    if (0 == mpi_rank ) {
-	      std::cout << " Merging: rank:"
-			<< mpi_rank << " npart: "
-			<< arrays.l_px << " tagged indexes: " << vec_mask.size() << std::endl;
-	    }
 
 	    // First estimate the updated size (count)
 	    int part_size=arrays.l_px;
@@ -425,16 +445,12 @@ namespace converter
 	 
 	    for (int part_index=0;part_index<part_size; part_index++){
 	      bool skip_index=false;
-	      if (0 == mpi_rank ) std::cout << " part_index: " <<  part_index << " part_size: " << part_size << std::endl;	    
 	      for (size_t mask_index=0;mask_index<vec_mask.size(); mask_index++){
 		if (part_index==vec_mask[mask_index]) {skip_index=true; break;}		
 	      }//!mask_index
 	      if (skip_index==true) continue;
-	      //if (0 == mpi_rank ) std::cout << " part_index: " <<  part_index << " accepted " << std::endl;	    
 	      count++;
 	    }//!part_index
-
-	    if (0 == mpi_rank ) std::cout << "1 count:" <<  count << std::endl;	    
 
 	    // Create buffer
             double array_x[count];
@@ -445,7 +461,6 @@ namespace converter
             double array_py[count];
 	    double array_pz[count];
 
-	    if (0 == mpi_rank ) std::cout << "2" << std::endl;	    	    
 	    count=0;
 	    for (int part_index=0;part_index<part_size; part_index++){
 	      bool skip_index=false;
@@ -463,21 +478,22 @@ namespace converter
 	      count++;
 	    }//!part_index
 
-	    if (0 == mpi_rank ) std::cout << "3 count: " << count << std::endl;	    	    
-
 	    
 	    // Get MPI know the reduction
 	    int ntracks_proc=count;
 	    int ntracks[mpi_size];	    
 	    MPI_Barrier(MPI_COMM_WORLD);	    	    	    
 	    MPI_Allgather(&ntracks_proc, 1, MPI_INT,  ntracks, 1, MPI_INT,  MPI_COMM_WORLD);
-
-	    if ( mpi_rank == 0 ){
-	      std::cout << std::endl;  
-	      for (int i=0 ; i<mpi_size ; i++) {std::cout << " rank: " << i << " ntracks: " << ntracks[i];}  
-	      std::cout << std::endl;  
-	    }
-
+	    
+	    std::cout << "rank: " << mpi_rank
+		      << " initial npart: " << arrays.l_px
+		      << " tagged indexes: " << vec_mask.size() 
+		      << " final npart: " << ntracks[mpi_rank]
+		      << " reduction level: " <<  ((double) ntracks[mpi_rank])/((double)arrays.l_px) * 100. << " %"
+		      <<  std::endl;
+	    std::cout << "" << std::endl;  		
+	    
+	    
 	    // New total particles  ?
             e_npart=0;
 	    for (int i=0; i<mpi_size; i++) e_npart+=ntracks[i];	    

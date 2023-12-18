@@ -156,11 +156,23 @@ namespace converter
       int dims= x_bins[0]*x_bins[1]*x_bins[2];
       int pdims=p_bins[0]*p_bins[1]*p_bins[2];
 
+      int total_cells{0};
+      int merged_cells{0};
+      int total_part_processed{0};
+      
       //Main loop over linearized cell indexes
-      for(int  c_index = 0; c_index < dims ; ++c_index){
+      for(int  c_index = 0; c_index < dims ; c_index++){
 	// Check nb. of particles in the cell
 	int npart_pcell = c_indexes[c_index].size();	
-	if (npart_pcell < m_min_npart_pcell) continue;	
+	if (npart_pcell < m_min_npart_pcell)
+	  { 
+	    if ((m_verbosity>1) && (0 == m_mpi_rank)){
+	      std::cout << " icell Linear: " << c_index
+			<< " removing npart/cell:" << npart_pcell
+			<< std::endl;
+	    }
+	    continue;		    
+	  }	  
 
 	// Define momentum tiles per cell 
 	std::vector<double> p_cell[3];
@@ -171,7 +183,6 @@ namespace converter
 	  p_cell[2][ic] = pp.pz[c_indexes[c_index][ic]];    	    
         }
 
-	
 	if ((m_verbosity>1) && (0 == m_mpi_rank)){
 	  std::cout << " icell Linear: " << c_index
 	       	    << " npart/cell:" << npart_pcell
@@ -183,42 +194,78 @@ namespace converter
 					      << " pz: " << p_cell[2][ii]
 					      << std::endl;					      	  	  
 	}
-	
+
 	//Define new binning in  momentum space  
 	double p_min[3], p_max[3], dp[3], inv_dp[3];
+	double p_rebin[3];
 	bool p_binning[3]={true,true,true};
-	double p_rebin[3]={0.,0.,0.}; 
 	int n_rebin[3]={0,0,0};
 	
 	for(int i=0;i<3;i++){
-	  auto mm = minmax_element(p_cell[i].begin(), p_cell[i].end());
-	  p_min[i] = *mm.first;
-	  p_max[i] = *mm.second;
-	  // Mark anomaly in direction space
-	  if (fabs(p_max[i]-p_min[i]) == 0) p_binning[i] = false;	  
-	  p_rebin[i] = re_binning(p_cell[i]);
-	  //n_rebin[i] = (p_rebin[i]==0) ? 0 : std::ceil((p_max[i]-p_min[i])/p_rebin[i]);
-	  n_rebin[i] = (p_rebin[i]==0) ? 1 : std::ceil((p_max[i]-p_min[i])/p_rebin[i]);
-	  if (p_binning[i]){
-	    dp[i] = fabs(p_max[i] - p_min[i])/(n_rebin[i]);
-	    inv_dp[i] = 1.0/dp[i];
-	  }else{
-	    dp[i]=0.0;
-	    inv_dp[i]=1.0;
+	  p_min[i]=p_max[i]=dp[i]=inv_dp[i]=p_rebin[i]=0.0;
+	}	
+
+	// Check if auto_binning on
+        if (pdims<0 && !m_auto_binning) m_auto_binning=true;  
+	
+	if (m_auto_binning){	  
+	  for(int i=0;i<3;i++){
+	    auto mm = minmax_element(p_cell[i].begin(), p_cell[i].end());
+	    p_min[i] = *mm.first;
+	    p_max[i] = *mm.second;
+	    // Mark anomaly in direction space
+	    if (fabs(p_max[i]-p_min[i]) == 0) p_binning[i] = false;	  
+	    p_rebin[i] = re_binning(p_cell[i]);
+            if (!p_binning[i]) p_rebin[i]=0; 	    
+	    n_rebin[i] = (p_rebin[i]==0) ? 1 : std::ceil((p_max[i]-p_min[i])/p_rebin[i]);
+	    if (p_binning[i]){
+	      dp[i] = fabs(p_max[i] - p_min[i])/(n_rebin[i]);
+	      inv_dp[i] = 1.0/dp[i];
+	    }else{
+	      dp[i]=0.0;
+	      inv_dp[i]=1.0;
+	    }
+	    
+	    if ((m_verbosity>1) && (0 == m_mpi_rank)){
+	      std::cout << " icell Linear: " << c_index
+			<< " dir= " << i
+			<< " pmin: " << p_min[i]
+			<< " pmax: " << p_max[i]
+			<< " n_pbins: " << n_rebin[i]
+			<< " inv_dp: " << inv_dp[i] 
+			<< " p_binning: " << p_binning[i] 
+			<< std::endl;	    
+	    }	  
+	  }//!for(3_D)
+	  
+	  if ((m_verbosity>1) && (0 == m_mpi_rank))
+	    std::cout << "Auto p_binning: " << n_rebin[0] << " : "
+		      << n_rebin[1] << " : " << n_rebin[2] << std::endl;	  
+	}else{
+	  for(int i=0;i<3;i++){
+	    auto mm = minmax_element(p_cell[i].begin(), p_cell[i].end());
+	    p_min[i] = *mm.first;
+	    p_max[i] = *mm.second;
+	    // Mark anomaly in direction space
+	    if (fabs(p_max[i]-p_min[i]) == 0) p_binning[i] = false;	  
+	    // take p_binning from user input
+	    n_rebin[i]=p_bins[i];
+	    if (!p_binning[i]) n_rebin[i]=1;	    
+	    if (p_binning[i]){
+	      dp[i] = fabs(p_max[i] - p_min[i])/(n_rebin[i]);
+	      inv_dp[i] = 1.0/dp[i];
+	    }else{
+	      dp[i]=0.0;
+	      inv_dp[i]=1.0;
+	    }
 	  }
 	  
-	  if ((m_verbosity>1) && (0 == m_mpi_rank)){
-	    std::cout << " icell Linear: " << c_index
-	              << " dir= " << i
-		      << " pmin: " << p_min[i]
-		      << " pmax: " << p_max[i]
-		      << " n_pbins: " << n_rebin[i]
-	              << " inv_dp: " << inv_dp[i] 
-	              << " p_binning: " << p_binning[i] 
-		      << std::endl;	    
-	  }	  
-	}//!for(3_D)
-
+	  for(int i=0; i<3; i++) 
+	    if ((m_verbosity>1) && (0 == m_mpi_rank))
+	      std::cout << "User defined p_binning : " <<  n_rebin[0] << " : "
+			<< n_rebin[1] << " : " << n_rebin[2] << std::endl;
+	}//!else m_auto_binning
+	
 	// Do the mapping p_cell <-> epoch_trk_indexes
 	pdims=n_rebin[2]*n_rebin[1]*n_rebin[0];
 	std::vector<int> p_cells_indexes[pdims];	
@@ -228,6 +275,13 @@ namespace converter
 	      //Row major mapping 
 	      int p_cell_index = (i*n_rebin[1]*n_rebin[2])+(j*n_rebin[2])+k;
 	      
+	      double px_inf = p_min[0] + i*dp[0];
+	      double px_sup = p_min[0] + (i+1) * dp[0];
+	      double py_inf = p_min[1] + j* dp[1];
+	      double py_sup = p_min[1] + (j+1) * dp[1];
+	      double pz_inf = p_min[2] + k* dp[2];
+	      double pz_sup = p_min[2] + (k+1) * dp[2];	      
+
 	      if ((m_verbosity>1) && (0 == m_mpi_rank)){ 
 		std::cout << "3D linear cell index i: " << i
 			  << " j: " << j  << " k: " << k 
@@ -243,32 +297,55 @@ namespace converter
 			  << std::endl;
 	      }
 	      
-	      double px_inf = p_min[0] + i*dp[0];
-	      double px_sup = p_min[0] + (i+1) * dp[0];
-	      double py_inf = p_min[1] + j* dp[1];
-	      double py_sup = p_min[1] + (j+1) * dp[1];
-	      double pz_inf = p_min[2] + k* dp[2];
-	      double pz_sup = p_min[2] + (k+1) * dp[2];	      
-	      
 	      for (int l=0; l<npart_pcell;l++){
+
+		if ((m_verbosity>1) && (0 == m_mpi_rank)){	
+		  std::cout << "3D Bornes  px: "<< p_cell[0][l]
+			    << " px_inf: " << px_inf << " px_sup: "
+			    << px_sup << std::endl;
+		  std::cout << "3D Bornes  py: "<< p_cell[1][l]
+			    << " py_inf: " << px_inf << " py_sup: "
+			    << px_sup << std::endl;
+		  std::cout << "3D Bornes  pz: "<< p_cell[2][l]
+			    << " pz_inf: " << px_inf << " pz_sup: "
+			    << px_sup << std::endl;		
+		}
+		
 		if ( is_inside<double>(p_cell[0][l], px_inf, px_sup) &&
 		     is_inside<double>(p_cell[1][l], py_inf, py_sup) &&
 		     is_inside<double>(p_cell[2][l], pz_inf, pz_sup) 
 		     )
 		  p_cells_indexes[p_cell_index].push_back(c_indexes[c_index][l]);
 	      }//!l
+	      if ((m_verbosity>1) && (0 == m_mpi_rank))
+		std::cout << "p_cell_index: " << p_cell_index
+			  << " contains n_part: "
+			  <<  p_cells_indexes[p_cell_index].size() << std::endl;
+	      total_part_processed+= p_cells_indexes[p_cell_index].size();	      
 	    }//!k
 	  }//!j
 	}//!i
+
+	if ((m_verbosity>1) && (0 == m_mpi_rank))
+	  std::cout << "p_reduction for cell c_index: " << c_index
+		    << " containing n_particles/geom cell: "
+		    << c_indexes[c_index].size()
+	            << " containing n_particle/mom cell: "
+	            <<   total_part_processed 
+		    <<  std::endl;
 	
 	// Do particle reduction
-	p_reduction(pp,n_rebin,p_min,dp,p_cells_indexes);
+	auto [total_pcell, merged_pcell] =  p_reduction(pp,n_rebin,p_min,dp,p_cells_indexes);
+
+	total_cells  += total_pcell;
+	merged_cells += merged_pcell;
 	
 	// Check particle distribution after Mapping 
 	for (int i_pcell=0; i_pcell<pdims; i_pcell++){
 	  if ((m_verbosity>1) && (0 == m_mpi_rank)){
 	    if (p_cells_indexes[i_pcell].size()==0) continue;
-	    std::cout << "Particle distribution: i_pcell: " << i_pcell << " npart/cell: "
+	    std::cout << "After Reduction: Particle distribution: i_pcell: "
+		      << i_pcell << " npart/cell: "
 		      << p_cells_indexes[i_pcell].size() << std::endl;
 	    for (size_t p=0; p<p_cells_indexes[i_pcell].size(); p++)
 	      std::cout << " p_index: " << p
@@ -279,38 +356,63 @@ namespace converter
 	  }
 	}
 	
-      }//!for(c_index)		      
+      }//!for(c_index)
+
+	if ((m_verbosity>0) && (0 == m_mpi_rank)){	 
+	  std::cout << "p_cartesian statistics: total_cells: "
+		    << total_cells << " n_merged_cells: "
+		    << merged_cells<< " %(merged)_cells: "
+		    << (merged_cells/(double)total_cells)*100. << " %" << std::endl;
+	}
+      
     }//!p_cartesian
 
     
-    void Merger_3d::p_reduction(part &pp, const int* p_bins, const double* p_min,
-				const double* dp, std::vector<int> p_indexes[]){
-
+    std::tuple<int, int>
+    Merger_3d::p_reduction(part &pp, const int* p_bins, const double* p_min,
+			   const double* dp, std::vector<int> p_indexes[]){
+      
       //
       // Particle Merging Algorithm
       //          M. Vranic et al., CPC, 191 65-73 (2015)
-      //          inspired by specific SMILEI implementation
+      //          inspired by the SMILEI pic code  implementation
       //          https://smileipic.github.io/Smilei/Understand/particle_merging.html 
       //
       
+      
       // Photon case not treated for the moment 
-      if (!p_indexes[0].empty() && pp.rm[p_indexes[0][0]]==0) return;
+    if (!p_indexes[0].empty() && pp.rm[p_indexes[0][0]]==0) return std::make_tuple(0,0);
       
       // P-Cell geometry
       int pdims{0};       
       // Total number of P-bins
       pdims = p_bins[0]*p_bins[1]*p_bins[2];
 
+      int n_cell_merged=0;
+      int total_part_processed=0;
+      
       // Check particle distribution after Mapping 
       for (int i_pcell=0; i_pcell<pdims; i_pcell++){
 	int npart_per_cell=p_indexes[i_pcell].size();
+
+	if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
+	  std::cout << "before min_part_cell selection p_reduction: i_pcell: "
+		    << i_pcell << " npart/cell: "
+		    << npart_per_cell << std::endl;
+	}
 	
 	// Selected only enough populated cells.
 	if (npart_per_cell<m_min_npart_pcell) continue;
+
+	// Increment for statitistic  	
+	n_cell_merged++;
+	total_part_processed+=npart_per_cell;
 	
 	if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
-	  std::cout << "p_reduction: selected i_pcell: " << i_pcell << " npart/cell: "
-		    << npart_per_cell << std::endl;
+	  std::cout << "p_reduction: selected i_pcell: "
+		    << i_pcell << " npart/cell: "
+		    << npart_per_cell <<  " total_part_processed: "
+		    << total_part_processed <<std::endl;	  
 	}
 	
 	// Init total cell quantities
@@ -465,6 +567,18 @@ namespace converter
 	      }
 	    }//!(fabs()>0)
       }//!for(p-cells)
+
+      
+      if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
+	std::cout << "p_reduction: n_tot_pcell: "
+		  << pdims << " n_merged_cells: "
+		  << n_cell_merged
+	          << " total_part_processed " << total_part_processed     
+		  << " masked indexes: " << m_mask_indexes.size()
+		  << std::endl;
+      }
+	
+	return  std::make_tuple(pdims, n_cell_merged);
     }//! p_reduction
     
   }//! ns dim_3

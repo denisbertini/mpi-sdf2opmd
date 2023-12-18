@@ -36,7 +36,6 @@ namespace converter
 {
   namespace dim_2
   {  
-
     namespace fs = std::filesystem;
     
     namespace si_units{

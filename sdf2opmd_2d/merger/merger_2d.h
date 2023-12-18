@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 
 // MPI
 #include "mpi.h"
@@ -21,16 +22,17 @@ namespace converter
     private:
       int m_verbosity{0};
       int m_min_npart_pcell{0};
-      double m_min_dp_pcell[3];
+      double m_min_dp_pcell[3]={0.,0.,0.,};
       int m_mpi_rank{-1};
       int m_mpi_size{-1};
       std::vector<int> m_mask_indexes;
-    public:
+      bool m_auto_binning{false};
+      public:
       Merger_2d(int rank, int size);
       virtual ~Merger_2d(){;}
       void merge(part &pp, const int* x_bins, const int* p_bins);
       void p_cartesian(part &pp, const int* x_bins, const int* p_bins, std::vector<int>* c_indexes);
-      void p_reduction(part &pp, const int* p_bins, const double* p_min,
+      std::tuple<int, int> p_reduction(part &pp, const int* p_bins, const double* p_min,
 		       const double* dp, std::vector<int>* c_indexes);
       void setVerbose(int val){m_verbosity=val;}
       void setMinNpartPerCell(int val){m_min_npart_pcell=val;}
@@ -38,7 +40,5 @@ namespace converter
       void setMpiInfo(int i, int j){m_mpi_rank=i;m_mpi_size=j;}
       std::vector<int> get_mask_indexes(){return m_mask_indexes;}
     };
-
-    
   }
 }

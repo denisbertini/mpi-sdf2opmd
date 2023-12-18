@@ -212,7 +212,7 @@ Example:
 The converter can on demand perform data compression. For that purpose, the  particle merging algorithm as described in
 [M. Vranic et al. (2005)](https://www.sciencedirect.com/science/article/abs/pii/S0010465515000405?via%3Dihub) is used.
 
-The algorithm implementation is similar to the one used in the 
+The algorithm implementation is inspired by the one used in the 
 [Smilei pic code](https://smileipic.github.io/Smilei/Understand/particle_merging.html) and uses a cartesian momentum
 discretization.
 
