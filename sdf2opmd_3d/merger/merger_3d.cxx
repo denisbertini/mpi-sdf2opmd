@@ -163,7 +163,8 @@ namespace converter
       //Main loop over linearized cell indexes
       for(int  c_index = 0; c_index < dims ; c_index++){
 	// Check nb. of particles in the cell
-	int npart_pcell = c_indexes[c_index].size();	
+	int npart_pcell = c_indexes[c_index].size();
+        // Select p_cell with at least min. particles	
 	if (npart_pcell < m_min_npart_pcell)
 	  { 
 	    if ((m_verbosity>1) && (0 == m_mpi_rank)){
@@ -407,6 +408,7 @@ namespace converter
 	// Increment for statitistic  	
 	n_cell_merged++;
 	total_part_processed+=npart_per_cell;
+	m_total_part_processed+=npart_per_cell;
 	
 	if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
 	  std::cout << "p_reduction: selected i_pcell: "
@@ -569,11 +571,11 @@ namespace converter
       }//!for(p-cells)
 
       
-      if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
+      if ((m_verbosity>0) && (0 == m_mpi_rank)){	 
 	std::cout << "p_reduction: n_tot_pcell: "
 		  << pdims << " n_merged_cells: "
 		  << n_cell_merged
-	          << " total_part_processed " << total_part_processed     
+	          << " total_part_processed " << m_total_part_processed     
 		  << " masked indexes: " << m_mask_indexes.size()
 		  << std::endl;
       }

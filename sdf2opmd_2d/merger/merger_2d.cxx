@@ -75,11 +75,12 @@ namespace converter
 	    std::cout << "recalcuted  index--> i: " << i_x << " j: " << i_y  << std::endl;
 	  }
 	  
+	  double x_inf = xmin + i* delta_x;
+	  double x_sup = xmin + (i+1) * delta_x;
+	  double y_inf = ymin + j* delta_y;
+	  double y_sup = ymin + (j+1) * delta_y;
+	  	  
 	  for (int k=0; k<n_part;k++){
-	      double x_inf = xmin + i* delta_x;
-	      double x_sup = xmin + (i+1) * delta_x;
-	      double y_inf = ymin + j* delta_y;
-	      double y_sup = ymin + (j+1) * delta_y;
 	      
 	      if ( is_inside<double>(pp.x[k], x_inf, x_sup) &&
 		   is_inside<double>(pp.y[k], y_inf, y_sup) 
@@ -391,6 +392,7 @@ namespace converter
 	// Increment for statitistic  
 	n_cell_merged++;
 	total_part_processed+=npart_per_cell;
+	m_total_part_processed+=npart_per_cell;	
 	
 	if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
 	  std::cout << "p_reduction: selected i_pcell: "
@@ -553,11 +555,11 @@ namespace converter
 	    }//!(fabs()>0)
       }//!for(p-cells)
       
-      if ((m_verbosity>1) && (0 == m_mpi_rank)){	 
+      if ((m_verbosity>0) && (0 == m_mpi_rank)){	 
 	std::cout << "p_reduction: n_tot_pcell: "
 		  << pdims << " n_merged_cells: "
 		  << n_cell_merged
-	          << " total_part_processed " << total_part_processed     
+	          << " total_part_processed " << m_total_part_processed     
 		  << " masked indexes: " << m_mask_indexes.size()
 		  << std::endl;
       }

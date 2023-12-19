@@ -435,14 +435,14 @@ namespace converter
             Merger_3d pm(mpi_rank,mpi_size);
 	    pm.setVerbose(1);
 	    pm.merge(arrays, n_bins, p_bins);
-	    
+
 	    // Get mask indexes
 	    std::vector<int> vec_mask = pm.get_mask_indexes();
 
 	    // First estimate the updated size (count)
 	    int part_size=arrays.l_px;
 	    int count{0};	    
-	 
+
 	    for (int part_index=0;part_index<part_size; part_index++){
 	      bool skip_index=false;
 	      for (size_t mask_index=0;mask_index<vec_mask.size(); mask_index++){
@@ -461,7 +461,8 @@ namespace converter
             double array_py[count];
 	    double array_pz[count];
 
-	    count=0;
+	    count=0;	    
+            #pragma omp parallel reduction(+:count)
 	    for (int part_index=0;part_index<part_size; part_index++){
 	      bool skip_index=false;
 	      for (size_t mask_index=0;mask_index<vec_mask.size(); mask_index++){
@@ -482,14 +483,14 @@ namespace converter
 	    // Get MPI know the reduction
 	    int ntracks_proc=count;
 	    int ntracks[mpi_size];	    
-	    MPI_Barrier(MPI_COMM_WORLD);	    	    	    
 	    MPI_Allgather(&ntracks_proc, 1, MPI_INT,  ntracks, 1, MPI_INT,  MPI_COMM_WORLD);
 	    
 	    std::cout << "rank: " << mpi_rank
 		      << " initial npart: " << arrays.l_px
 		      << " tagged indexes: " << vec_mask.size() 
 		      << " final npart: " << ntracks[mpi_rank]
-		      << " reduction level: " <<  ((double) ntracks[mpi_rank])/((double)arrays.l_px) * 100. << " %"
+		      << " reduction level: "
+		      <<  (1.-((double) ntracks[mpi_rank])/((double)arrays.l_px)) * 100. << " %"
 		      <<  std::endl;
 	    std::cout << "" << std::endl;  		
 	    

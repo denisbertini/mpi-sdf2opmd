@@ -27,13 +27,15 @@ namespace converter
       int m_mpi_size{-1};
       std::vector<int> m_mask_indexes;
       bool m_auto_binning{false};
-      public:
+      int m_total_part_processed{0};
+      
+    public:
       Merger_2d(int rank, int size);
       virtual ~Merger_2d(){;}
       void merge(part &pp, const int* x_bins, const int* p_bins);
       void p_cartesian(part &pp, const int* x_bins, const int* p_bins, std::vector<int>* c_indexes);
       std::tuple<int, int> p_reduction(part &pp, const int* p_bins, const double* p_min,
-		       const double* dp, std::vector<int>* c_indexes);
+				       const double* dp, std::vector<int>* c_indexes);
       void setVerbose(int val){m_verbosity=val;}
       void setMinNpartPerCell(int val){m_min_npart_pcell=val;}
       void setMinDpPerCell(int i, double val){m_min_dp_pcell[i]=val;}

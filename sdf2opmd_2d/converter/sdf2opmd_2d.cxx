@@ -459,14 +459,14 @@ namespace converter
 		// Get MPI know the reduction
 		int ntracks_proc=count;
 		int ntracks[mpi_size];	    
-		MPI_Barrier(MPI_COMM_WORLD);	    	    	    
 		MPI_Allgather(&ntracks_proc, 1, MPI_INT,  ntracks, 1, MPI_INT,  MPI_COMM_WORLD);
 
 		std::cout << "rank: " << mpi_rank
 			  << " initial npart: " << arrays.l_px
 			  << " tagged indexes: " << vec_mask.size() 
 			  << " final npart: " << ntracks[mpi_rank]
-		          << " reduction level: " <<  ((double) ntracks[mpi_rank])/((double)arrays.l_px) * 100. << " %"
+		          << " reduction level: "
+			  <<  (1.-((double) ntracks[mpi_rank])/((double)arrays.l_px)) * 100. << " %"
 		          <<  std::endl;
 		std::cout << "" << std::endl;  		
 		
