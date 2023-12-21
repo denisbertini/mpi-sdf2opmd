@@ -108,24 +108,41 @@ namespace converter
 	    species_list = split(species_name.c_str());
 
 	  // Get compression parameters
-	  std::vector<std::string> compression_list;
-	  if ( !compression_name.empty() )
-	    compression_list = split(compression_name.c_str());	  
-	  
-	  std::string comp_type = compression_list[0];
 	  // Bining default definition for compression
+	  std::string comp_type;
+          int  n_part_pcell{0};
 	  int  n_bins[2]  =  {4,4};
 	  int  p_bins[3]  =  {-1,-1,-1};
-          if (compression_list.size() >= 3){   
-	    for (int i=0;i<2;i++){
-	      n_bins[i]=std::atoi(compression_list[i+1].c_str());
+	  
+	  std::vector<std::string> compression_list;
+	  if ( !compression_name.empty() ){
+	    compression_list = split(compression_name.c_str());	  
+	    
+	    comp_type = compression_list[0];
+	    n_part_pcell = std::atoi(compression_list[1].c_str());
+	    
+	    if (compression_list.size() >= 4){   
+	      for (int i=0;i<2;i++){
+		n_bins[i]=std::atoi(compression_list[i+2].c_str());
+	      }
 	    }
+	    if (compression_list.size() >= 7){   
+	      for (int i=0;i<3;i++){
+		p_bins[i]=std::atoi(compression_list[i+4].c_str());
+	      }
+	    }	    
 	  }
-          if (compression_list.size() >= 6){   
-	    for (int i=0;i<3;i++){
-	      p_bins[i]=std::atoi(compression_list[i+3].c_str());
-	    }
+	  
+	  if (0 == mpi_rank){
+	    std::cout << std::endl;
+	    std::cout << " compression method: " << comp_type << " npart/cell: " << n_part_pcell << std::endl;
+	    for (int i=0;i<2; i++ ) std::cout << " i: " 
+					      << i << " n_bins: ";
+	    for (int i=0;i<3; i++ ) std::cout << " i: " 	    
+				              << " p_bins: " << p_bins[i] << std::endl;
 	  }
+
+
 	  
           /*
 	  if (0 == mpi_rank){
@@ -362,6 +379,7 @@ namespace converter
 	      cout << "Derived Fields Datasets content has been fully written to disk\n";
 	  } // derived fields++
 	  
+
 	  // 
 	  // Particles
 	  //
@@ -416,122 +434,190 @@ namespace converter
 		
 		Merger_2d pm(mpi_rank,mpi_size);
 		pm.setVerbose(1);
+		pm.setMinNpartPerCell(n_part_pcell);		
 		pm.merge(arrays, n_bins, p_bins);
+
 		// Get mask indexes
 		std::vector<int> vec_mask = pm.get_mask_indexes();
+		std::vector<int> mask_array = pm.get_mask_array();
 		
 		// First estimate the updated size (count)
 		int part_size=arrays.l_px;
-		int count{0};	    
-		for (int part_index=0;part_index<part_size; part_index++){
-		  bool skip_index=false;
-		  for (size_t mask_index=0;mask_index<vec_mask.size(); mask_index++){
-		    if (part_index==vec_mask[mask_index]) {skip_index=true; break;}		
-		  }//!mask_index
-		  if (skip_index==true) continue;
-		  count++;
-		}//!part_index
-		
-		// Create buffer
-		double array_x[count];
-		double array_y[count];
-		double array_w[count];
-		double array_px[count];
-		double array_py[count];
-		double array_pz[count];
-		
-		count=0;
-		for (int part_index=0;part_index<part_size; part_index++){
-		  bool skip_index=false;
-		  for (size_t mask_index=0;mask_index<vec_mask.size(); mask_index++){
-		    if (part_index==vec_mask[mask_index]) {skip_index=true; break;}		
-		  }//!mask_index
-		  if (skip_index==true) continue;
-		  array_x[count]=arrays.x[part_index];
-		  array_y[count]=arrays.y[part_index];
-		  array_w[count]=arrays.w[part_index];
-		  array_px[count]=arrays.px[part_index];
-		  array_py[count]=arrays.py[part_index];
-		  array_pz[count]=arrays.pz[part_index];	            
-		  count++;
-		}//!part_index
-		
-		// Get MPI know the reduction
-		int ntracks_proc=count;
-		int ntracks[mpi_size];	    
-		MPI_Allgather(&ntracks_proc, 1, MPI_INT,  ntracks, 1, MPI_INT,  MPI_COMM_WORLD);
+		int count{0};
 
-		std::cout << "rank: " << mpi_rank
-			  << " initial npart: " << arrays.l_px
-			  << " tagged indexes: " << vec_mask.size() 
-			  << " final npart: " << ntracks[mpi_rank]
-		          << " reduction level: "
-			  <<  (1.-((double) ntracks[mpi_rank])/((double)arrays.l_px)) * 100. << " %"
-		          <<  std::endl;
-		std::cout << "" << std::endl;  		
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0)
+		    count++;
+		}//!part_index
 		
-		// New total particles  ?
-		e_npart=0;
-		for (int i=0; i<mpi_size; i++) e_npart+=ntracks[i];	    
-		
-		// Create Particle species
-		ParticleSpecies e = series.iterations[sdf_iter].particles[spec.c_str()];	    
-		// Create Dataset
-		Datatype datatype = determineDatatype<double>();
-		Extent global_extent = {e_npart};
-		Dataset dataset = Dataset(datatype, global_extent);
-		
-		if (0 == mpi_rank)
-		  cout << "Prepared a Dataset of size " << dataset.extent[0] 
-		       << " and Datatype " << dataset.dtype
-		       << '\n';    
-		
-		// Recalculate particle distribution/proc
-		e_start=0;
-		for (int i=0; i<mpi_rank; i++) e_start=e_start+ntracks[i];
-		
-		Offset chunk_offset = {e_start};
-		Extent chunk_extent = {ntracks[mpi_rank]};
-		
-		// Add reduced particules	    
-		// P
-		if (arrays.l_px>0){ 
-		  e["momentum"]["x"].resetDataset(dataset);
-		  e["momentum"]["x"].storeChunkRaw( (array_px), chunk_offset, chunk_extent);
-		}
-		
-		if (arrays.l_py>0){ 
-		  e["momentum"]["y"].resetDataset(dataset);
-		  e["momentum"]["y"].storeChunkRaw( (array_py), chunk_offset, chunk_extent);
-		}
-		
-		if (arrays.l_pz>0){     
-		  e["momentum"]["z"].resetDataset(dataset);
-		  e["momentum"]["z"].storeChunkRaw( (array_pz), chunk_offset, chunk_extent);
-		}
-		
-		// X
+	    // Get MPI know the reduction
+	    int ntracks_proc=count;
+	    int *ntracks = (int *)malloc(sizeof(int) * mpi_size);
+
+	    for (int i=0;i<mpi_size;i++) ntracks[i]=0;
+	    
+	    MPI_Allgather(&ntracks_proc, 1, MPI_INT,  ntracks, 1, MPI_INT,  MPI_COMM_WORLD);
+	    
+	    std::cout << "rank: " << mpi_rank
+		      << " initial npart: " << arrays.l_px
+		      << " tagged indexes: " << vec_mask.size() 
+		      << " final npart: " << ntracks[mpi_rank]
+		      << " reduction level: "
+		      <<  (1.-((double) ntracks[mpi_rank])/((double)arrays.l_px)) * 100. << " %"
+		      <<  std::endl;
+	    std::cout << "" << std::endl;  		
+
+	    // Allocate reduced array storage	    
+            double reduced_array[count];
+	    
+	    // Re-compute total nb. of particles 
+            e_npart=0;
+	    for (int i=0; i<mpi_size; i++) {
+	      e_npart+=ntracks[i];
+	      //if ( 0 == mpi_rank ){
+	      //	std::cout << " rank: " << i << " ntracks/rank: "
+	      //	  << ntracks[i] << " tot: " << e_npart << std::endl;
+	      //}
+	    } 
+
+	    // Create Particle species
+	    ParticleSpecies e = series.iterations[sdf_iter].particles[spec.c_str()];	    
+	    // Create Dataset
+	    Datatype datatype = determineDatatype<double>();
+	    Extent global_extent = {e_npart};
+	    Dataset dataset = Dataset(datatype, global_extent);
+	    
+	    if (0 == mpi_rank)
+	      cout << "Prepared a Dataset of size " << dataset.extent[0] 
+		   << " and Datatype " << dataset.dtype
+		   << '\n';    
+	    
+	    // Recalculate particle distribution/proc
+            e_start=0;
+	    for (int i=0; i<mpi_rank; i++) e_start=e_start+ntracks[i];
+	      
+	    Offset chunk_offset = {e_start};
+	    Extent chunk_extent = {ntracks[mpi_rank]};
+
+	    // Reduced arrays store	    
+	    int red_index=0;
+	    for ( const auto en : PartVars2D::All ){
+	      const PartVars2D::Type val_en = static_cast<PartVars2D::Type>(en);
+	      switch (val_en){
+	      case PartVars2D::x:
+		if (0 == mpi_rank)		
+		  std::cout << "Store x reduced array" << std::endl;
+		red_index=0;
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0){		
+		    reduced_array[red_index]=arrays.x[part_index];
+		    red_index++;
+		  }
+		}		
+		// X array
 		if (arrays.l_x>0){         
 		  e["position"]["x"].resetDataset(dataset);
-		  e["position"]["x"].storeChunkRaw( (array_x), chunk_offset, chunk_extent);
+		  e["position"]["x"].storeChunkRaw( (reduced_array), chunk_offset, chunk_extent);
+		}	    	    		
+		break;      
+	      case PartVars2D::y:
+		if (0 == mpi_rank)				
+		std::cout << "Store y reduced array" << std::endl;
+		// Create  array  
+		red_index=0;
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0){		
+		    reduced_array[red_index]=arrays.y[part_index];
+		    red_index++;
+		  }
 		}
-
-		// Y
-		if (arrays.l_y>0){         
+		// Y array
+		if (arrays.l_y>0){ 
 		  e["position"]["y"].resetDataset(dataset);
-		  e["position"]["y"].storeChunkRaw( (array_y), chunk_offset, chunk_extent);
+		  e["position"]["y"].storeChunkRaw( (reduced_array), chunk_offset, chunk_extent);
+		}		
+		break;      
+	      case PartVars2D::px:
+		if (0 == mpi_rank)				
+		std::cout << "Store px reduced array" << std::endl;      
+		// Create  array  
+		red_index=0;
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0){		
+		    reduced_array[red_index]=arrays.px[part_index];
+		    red_index++;
+		  }
 		}
-		
-		auto const scalar = openPMD::RecordComponent::SCALAR;
-		
+		// Px array
+		if (arrays.l_px>0){ 
+		  e["momentum"]["x"].resetDataset(dataset);
+		  e["momentum"]["x"].storeChunkRaw( (reduced_array), chunk_offset, chunk_extent);
+		}		
+		break;      
+	      case PartVars2D::py:
+		if (0 == mpi_rank)				
+		std::cout << "Store py reduced array" << std::endl;
+		// Create  array  
+		red_index=0;
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0){		
+		    reduced_array[red_index]=arrays.py[part_index];
+		    red_index++;
+		  }
+		}
+		// Py array
+		if (arrays.l_py>0){ 
+		  e["momentum"]["y"].resetDataset(dataset);
+		  e["momentum"]["y"].storeChunkRaw( (reduced_array), chunk_offset, chunk_extent);
+		}				
+		break;      
+	      case PartVars2D::pz:
+		if (0 == mpi_rank)				
+		std::cout << "Store pz reduced array" << std::endl;
+		// Create  array  
+		red_index=0;
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0){		
+		    reduced_array[red_index]=arrays.pz[part_index];
+		    red_index++;
+		  }
+		}
+		// Pz array
+		if (arrays.l_px>0){ 
+		  e["momentum"]["z"].resetDataset(dataset);
+		  e["momentum"]["z"].storeChunkRaw( (reduced_array), chunk_offset, chunk_extent);
+		}				
+		break;
+	      case PartVars2D::w:
+		if (0 == mpi_rank)				
+		  std::cout << "Store w reduced array" << std::endl;
+		// Create  array  
+		red_index=0;
+		for (int part_index=0;part_index<part_size; part_index++){
+		  if (mask_array[part_index]==0){		
+		    reduced_array[red_index]=arrays.w[part_index];
+		    red_index++;
+		  }
+		}
+		// W array
+		//auto const scalar = 
 		if (arrays.l_w>0){         
-		  e["weighting"][scalar].resetDataset(dataset);
-		  e["weighting"][scalar].storeChunkRaw ( (array_w), chunk_offset, chunk_extent);
+		  e["weighting"][openPMD::RecordComponent::SCALAR].resetDataset(dataset);
+		  e["weighting"][openPMD::RecordComponent::SCALAR].storeChunkRaw
+		                     (reduced_array, chunk_offset, chunk_extent);
 		}
-		
-		// Sync to Disk
-		series.flush(); 
-		
+		break;            
+	      default:
+		assert( ! "Invalid PartVars2D enum value" );
+		break;
+	      }
+	    }
+
+	    // Free dyn. memory used by gather
+            free(ntracks);
+	    // Sync to disk
+	    series.flush(); 
+	    
 	      }//! cartesian compression	      
 	    }//! compression requested
 	    else{

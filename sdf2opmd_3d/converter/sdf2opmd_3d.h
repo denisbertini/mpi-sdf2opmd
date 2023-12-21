@@ -133,6 +133,22 @@ namespace converter
 	,{"jz", field_value::jz }        
       };
     
+    namespace PartVars3D
+    {
+      enum Type
+	{
+	  x  = 0,
+	  y  = 1,
+	  z  = 2,
+	  px = 3, 
+	  py = 4,    
+	  pz = 5,
+	  w  = 6
+	};
+      
+      static const Type All[] = { x, y, z, px, py, pz, w  };
+    }
+      
     
     class Converter3D{  
       

@@ -26,7 +26,11 @@ namespace converter
       //  
       // Particle resampling, Vranic and al, method
       //
-      
+
+      // create  mask array   
+      m_mask_array.resize(pp.l_px);  
+      for (int s_index=0;s_index<pp.l_px;s_index++) m_mask_array[s_index]=0;
+            
       if (m_verbosity>1 && 0 == m_mpi_rank){
 	std::cout << std::endl;
 	std::cout << "Merger: rank: "<< m_mpi_rank
@@ -379,9 +383,10 @@ namespace converter
       //          inspired by the SMILEI pic code  implementation
       //          https://smileipic.github.io/Smilei/Understand/particle_merging.html 
       //
-      
-      
-      // Photon case not treated for the moment 
+
+
+    
+    // Photon case not treated for the moment 
     if (!p_indexes[0].empty() && pp.rm[p_indexes[0][0]]==0) return std::make_tuple(0,0);
       
       // P-Cell geometry
@@ -565,7 +570,7 @@ namespace converter
 	      
 	      // Mask the other indexes in the cell
 	      for (int p=2; p<npart_per_cell; p++){
-		m_mask_indexes.push_back(p_indexes[i_pcell][p]);
+		m_mask_array[p_indexes[i_pcell][p]]=-1;
 	      }
 	    }//!(fabs()>0)
       }//!for(p-cells)

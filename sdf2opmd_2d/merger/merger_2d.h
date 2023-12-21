@@ -28,6 +28,7 @@ namespace converter
       std::vector<int> m_mask_indexes;
       bool m_auto_binning{false};
       int m_total_part_processed{0};
+      std::vector<int> m_mask_array;      
       
     public:
       Merger_2d(int rank, int size);
@@ -41,6 +42,7 @@ namespace converter
       void setMinDpPerCell(int i, double val){m_min_dp_pcell[i]=val;}
       void setMpiInfo(int i, int j){m_mpi_rank=i;m_mpi_size=j;}
       std::vector<int> get_mask_indexes(){return m_mask_indexes;}
+      std::vector<int> get_mask_array(){return m_mask_array;}            
     };
   }
 }

@@ -26,6 +26,10 @@ namespace converter
       //  
       // Particle resampling, Vranic and al, method
       //
+
+      // create  mask array   
+      m_mask_array.resize(pp.l_px);  
+      for (int s_index=0;s_index<pp.l_px;s_index++) m_mask_array[s_index]=0;
       
       if (m_verbosity>1 && 0 == m_mpi_rank){
 	std::cout << std::endl;
@@ -550,7 +554,7 @@ namespace converter
 	      
 	      // Mask the other indexes in the cell
 	      for (int p=2; p<npart_per_cell; p++){
-		m_mask_indexes.push_back(p_indexes[i_pcell][p]);
+		m_mask_array[p_indexes[i_pcell][p]]=-1;		
 	      }
 	    }//!(fabs()>0)
       }//!for(p-cells)
