@@ -223,7 +223,7 @@ To activate the particle reduction , the user should define a binning for the pa
 This is done by adding the following option to the converter main executable (2D/3D converter only):
 
 ```
-- -z cart:npart_cell:nx:ny:nz;npx:npy:npz
+ -z cart:npart_cell:nx:ny:nz;npx:npy:npz
 ```
 
 - the first field to the `-z` option defines the discretization method i.e `cart=cartesian`
