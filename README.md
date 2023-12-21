@@ -223,35 +223,39 @@ To activate the particle reduction , the user should define a binning for the pa
 This is done by adding the following option to the converter main executable (2D/3D converter only):
 
 ```
-- `-z cart:nx:ny:nz;npx:npy:npz`
+- `-z cart:npart_cell:nx:ny:nz;npx:npy:npz`
 ```
 
 - the first field to the `-z` option defines the discretization method i.e `cart=cartesian`
+- `npart_cell` corresponds to the minimum number of particle per cell needed to activate 
+the compression algorithm. The phase space cells structure is to be defined via the next parameters..
 - `nx:ny:nz` defines the binning in the particle geometrical space respectively in the  `x`, `y`, and `z` direction.
 - `npx:npy:npz` defines the binning in the particle momentum space respectively in the  `x`, `y`, and `z` direction.
 
 #### 2D Example: 
 
-- cartesian discretization 
+- cartesian discretization
+- npart/cell = 4
 - (4,4) binning in x and y direction
 - (6,6,6) binning in momentum space
 - output in ADIOS2 format
 
 ```
 # Convert SDF to ADIOS2 format including selection
-$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_r:electron_l -z cart:4:4:6:6:6 -o adios
+$SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_r:electron_l -z cart:4:4:4:6:6:6 -o adios
 
 ```
 
 #### 3D Example:
 
 - cartesian discretization 
+- npart/cell = 4
 - (4,4,4) binning in x,y and z direction
 - (6,6,6) binning in momentum space
 - output in HDF5 format
 
 ```
-$SIMDIR/bin/sdf2opmd_3d -p $SIMDIR/sim/epoch3d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_l:electron_r -z cart:4:4:4:8:8:8 -o hdf5
+$SIMDIR/bin/sdf2opmd_3d -p $SIMDIR/sim/epoch3d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_l:electron_r -z cart:4:4:4:4:8:8:8 -o hdf5
 ```
 
 #### Results
