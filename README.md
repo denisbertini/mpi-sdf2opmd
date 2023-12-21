@@ -270,7 +270,7 @@ Example:
 -rw-r--r--. 1 dbertini 111M Dec 12 20:35 0002.sdf
 ```
 
-Convert and reduce with phase-space binning `-z cart:4:4:4:8:8:8`
+Convert and reduce with phase-space binning `-z cart:4:4:4:4:8:8:8`
 
 ```
 -rw-r--r--. 1 dbertini  43M Dec 18 14:34 0002.h5
