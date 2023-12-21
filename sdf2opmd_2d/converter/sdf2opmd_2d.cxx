@@ -137,9 +137,8 @@ namespace converter
 	    std::cout << std::endl;
 	    std::cout << " compression method: " << comp_type << " npart/cell: " << n_part_pcell << std::endl;
 	    for (int i=0;i<2; i++ ) std::cout << " i: " 
-					      << i << " n_bins: ";
-	    for (int i=0;i<3; i++ ) std::cout << " i: " 	    
-				              << " p_bins: " << p_bins[i] << std::endl;
+					      << i << " n_bins: " << n_bins[i];
+	    for (int i=0;i<3; i++ ) std::cout << " i: " << i << " p_bins: " << p_bins[i] << std::endl;
 	  }
 
 
