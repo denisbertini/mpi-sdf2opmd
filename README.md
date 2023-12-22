@@ -258,40 +258,69 @@ $SIMDIR/bin/sdf2opmd_2d -p $SIMDIR/sim/epoch2d/data -f $sdf_files -m ex:ey:ez -d
 $SIMDIR/bin/sdf2opmd_3d -p $SIMDIR/sim/epoch3d/data -f $sdf_files -m ex:ey:ez -d $derived_data -s electron_l:electron_r -z cart:4:4:4:4:8:8:8 -o hdf5
 ```
 
-#### Results
+#### Results and Performance
 The converter reduction level depends on the user defined phase-space binning.
 In general defining a coarser phase space binning will tend to perform more particle merging 
 per cell and consquently will reduce more the original dataset.
 
-Example: 
+Realistic example: 
 
-- Original 3D simulation SDF file size `111 MBytes`:
+- Original 3D simulation SDF file size `102G Bytes`:
 ```
--rw-r--r--. 1 dbertini 111M Dec 12 20:35 0002.sdf
-```
-
-Convert and reduce with phase-space binning `-z cart:4:4:4:4:8:8:8`
-
-```
--rw-r--r--. 1 dbertini  43M Dec 18 14:34 0002.h5
+-rw-r--r--. 1 dbertini 102G Dec 21 21:12 0001.sdf
 ```
 
-For this binning defintion, the original SDF dataset is reduced by a factor of more than 2.
+This represents a realistic data volume produced by a typical EPOCH 3D simulation.
+We will now review different ways to perform particle merging and see 
+the corresponding compression effect on the data volume.
+In this example, the converter is run with `768` mpi ranks using the following command:
+
+```
+sdf2opmd_3d -p $SIMDIR/sim/epoch3d/data -f $sdf_files -s electron_l:electron_r -z cart:4:16:16:16:16:16:16 -o hdf5
+```
+
+Only the particles contribution in the SDF file will be converted. 
+The fields dataset contributing much less to the overall  data volume, it is good practice to do the fields convertion
+separately using much less MPI ranks i.e issueing the command for fields convertion only:
+
+```
+sdf2opmd_3d -p $SIMDIR/sim/epoch3d/data -f $sdf_files -m ex:ey:ez -d $derived_data  -o hdf5
+```
+
+- Convert and reduce with phase-space binning `-z cart:4:16:16:16:16:16:16`
+
+```
+-rw-r--r--. 1 dbertini  63G Dec 22 10:16 0001.h5
+```
+
+- Convert and reduce with phase-space binning `-z cart:4:8:8:8:8:8:8`
+
+```
+-rw-r--r--. 1 dbertini 9.2G Dec 22 11:32 0001.h5
+```
+
+For this binning defintion, the original SDF dataset is reduced by a factor of nearly 10 in few second runtime.
 To adjust the binning ( which depends on the use case) the converter gives a summary of the reduction efficiency 
 per MPI rank i.e
 
 ```
-p_cartesian statistics: total_cells: 3200 n_merged_cells: 1033 %(merged_cells): 32.2812 %
+p_cartesian statistics: total_cells: 180224 n_merged_cells: 55301 %(merged)_cells: 30.6846 %
+rank: 9 initial npart: 873813 tagged indexes: 0 final npart: 115791 reduction level: 86.7488 %
 
-rank: 0 initial npart: 10000 tagged indexes: 5529 final npart: 4471 reduction level: 44.71 %
+rank: 19 initial npart: 873813 tagged indexes: 0 final npart: 185012 reduction level: 78.827 %
 
-rank: 1 initial npart: 10000 tagged indexes: 5530 final npart: 4470 reduction level: 44.7 %
+rank: 0 initial npart: 873813 tagged indexes: 0 final npart: 173385 reduction level: 80.1577 %
 
-rank: 2 initial npart: 10000 tagged indexes: 5734 final npart: 4266 reduction level: 42.66 %
+rank: 2 initial npart: 873813 tagged indexes: 0 final npart: 104914 reduction level: 87.9935 %
 
-rank: 3 initial npart: 10000 tagged indexes: 4476 final npart: 5524 reduction level: 55.24 %
+rank: 10 initial npart: 873813 tagged indexes: 0 final npart: 185840 reduction level: 78.7323 %
+
+rank: 16 initial npart: 873813 tagged indexes: 0 final npart: 182351 reduction level: 79.1316 %
+
+rank: 449 initial npart: 873813 tagged indexes: 0 final npart: 104208 reduction level: 88.0743 %
 
 ```
+
 On can use this information for further phase-space binning fine tuning. 
 
 
